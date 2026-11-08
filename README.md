@@ -16,6 +16,7 @@ modes (Online, Limited, Offline) plus two events (cloud AI outage, sensors lost)
 | Contract helpers | `src/hybrid_ai/contracts/__init__.py` | Validate inputs/responses; wrap results in the provenance envelope (`source_tier`, `as_of`, `staleness_s`, `confidence`, `authoritative`) |
 | Fleet simulator | `src/hybrid_ai/sim/fleet.py`, `catalog.py` | Deterministic CA fleet sized for the demo (6 depots with edge servers, 12 sites, ~30 compressors, 12 technicians), sites with coverage quality, 5 compressor types with failure modes, technicians with skills, stock in the vans/depots/warehouse, repair history, manuals, open work orders, hidden ground-truth faults |
 | Telemetry simulator | `src/hybrid_ai/sim/telemetry.py` | Sensor readings with faults that drift in over time, plus warn/trip alarms. Exports per-asset JSONL files that the edge server replays (the demo stand-in for OPC-UA/Modbus/MQTT) |
+| Repair recommendation model | `src/hybrid_ai/models/`, `models/repair-rec-1.0.json` | Small trained model (logistic regression per compressor type) that ranks causes from telemetry, symptoms and history. 9 KB, 94.5% top-1 on held-out simulated data; the same weights run in the cloud, at the edge, on the device and in the dashboard. Retrain with `PYTHONPATH=src python3 -m hybrid_ai.models` |
 | Network fault injector | `src/hybrid_ai/sim/network.py` | Online / Limited / Offline per link, cloud-AI-outage and sensors-lost events, and named scenarios (remote site visit, PSPS outage, cloud AI outage, satellite backup, sensor failure) |
 
 ## Quick start

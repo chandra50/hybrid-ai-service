@@ -29,7 +29,9 @@ CREATE TABLE IF NOT EXISTS recommendations (
     priority               TEXT NOT NULL,
     status                 TEXT NOT NULL,           -- awaiting_approval | assigned | in_progress | completed
     assigned_technician_id TEXT,
-    generated_by           TEXT NOT NULL,           -- which agent / rule set produced the plan
+    generated_by           TEXT NOT NULL,           -- which model / agents produced the plan
+    model_version          TEXT,                    -- repair recommendation model that ranked the causes
+    model_confidence       REAL,                    -- probability of the top cause
     source_tier            TEXT NOT NULL,
     confidence             TEXT NOT NULL,
     cause_code             TEXT NOT NULL,
@@ -148,9 +150,10 @@ def populate(conn: sqlite3.Connection, data: dict[str, Any]) -> int:
             a = assets[wo["asset_id"]]
             d, top, loc = wo["diagnosis"], wo["diagnosis"]["causes"][0], wo["location"]
             conn.execute(
-                "INSERT INTO recommendations VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO recommendations VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (wo["work_order_id"], a["asset_id"], a["model"], a["category"], a["site_name"], wo["priority"],
-                 wo["status"], wo["assigned_technician_id"], "diagnosis+logistics agents (rule fallback)", "cloud",
+                 wo["status"], wo["assigned_technician_id"], f"{d.get('model_version', 'rules')} model + planning rules",
+                 d.get("model_version"), d.get("model_confidence"), "cloud",
                  "confirmed", top["cause_code"], top["description"], d["severity"], int(d["safe_to_run"]),
                  int(d["safety_override"]), loc["location"], loc.get("workshop_id"), loc.get("note"),
                  wo["est_hours"], json.dumps(wo["skills_required"]), created, created, 1))

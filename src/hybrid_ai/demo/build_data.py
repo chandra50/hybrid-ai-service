@@ -20,7 +20,10 @@ from typing import Any
 from ..sim import catalog as cat
 from ..sim.fleet import SIM_EPOCH, Fleet, Location, generate_fleet, haversine_km
 from ..sim.network import SCENARIOS
+from ..models.repair_model import HEALTHY, VERSION, RepairModel, train
 from ..sim.telemetry import _iso, fault_progress, live_telemetry
+
+MODEL_PATH = Path(__file__).resolve().parents[3] / "models" / f"{VERSION}.json"
 
 NOW = SIM_EPOCH + timedelta(hours=12)
 SEV_RANK = {"low": 0, "medium": 1, "high": 2, "critical": 3}
@@ -40,35 +43,46 @@ def latest(series: list[dict[str, Any]]) -> dict[str, float]:
     return {s["signal"]: s["points"][-1]["value"] for s in series}
 
 
-def diagnose(asset, readings: dict[str, float], symptoms: list[str], alarms: list[dict]) -> dict[str, Any]:
-    model = cat.MODELS_BY_NAME[asset.model]
-    base = {s.name: s.baseline for s in model.signals}
-    scored = []
-    for fm in model.failure_modes:
-        sig = []
-        for name, eff in fm.effects.items():
-            dev = (readings.get(name, base[name]) - base[name]) / base[name]
-            sig.append(min(max(dev / eff, 0.0), 1.0))
-        sig_score = sum(sig) / len(sig) if sig else 0.0
-        sym_score = (sum(1 for s in symptoms if s in fm.symptoms) / len(symptoms)) if symptoms else 0.0
-        w_sym = 0.5 if symptoms else 0.0
-        scored.append((fm, (1 - w_sym) * sig_score + w_sym * sym_score + 0.02))
-    total = sum(s for _, s in scored)
-    ranked = sorted(((fm, s / total) for fm, s in scored), key=lambda t: -t[1])
-    top = ranked[0][0]
+def trends(series: list[dict[str, Any]], baselines: dict[str, float]) -> dict[str, float]:
+    """Relative change over the telemetry window, per signal."""
+    return {x["signal"]: (x["points"][-1]["value"] - x["points"][0]["value"]) / baselines[x["signal"]] for x in series}
+
+
+def diagnose(model: RepairModel, asset, series: list[dict[str, Any]], symptoms: list[str],
+             alarms: list[dict]) -> dict[str, Any]:
+    """Rank causes with the repair recommendation model, then apply the safety rules."""
+    am = cat.MODELS_BY_NAME[asset.model]
+    base = {s.name: s.baseline for s in am.signals}
+    ranked = model.predict(asset.model, latest(series), trends(series, base), symptoms)
+    healthy = next((r["probability"] for r in ranked if r["cause_code"] == HEALTHY), 0.0)
+    faults = [r for r in ranked if r["cause_code"] != HEALTHY]
+    total = sum(r["probability"] for r in faults) or 1.0
+    causes = [{**r, "probability": round(r["probability"] / total, 2),
+               "severity": cat.failure_mode(r["cause_code"])[1].severity} for r in faults]
+    top = cat.failure_mode(causes[0]["cause_code"])[1]
     trip = any(a["severity"] == "critical" for a in alarms)
-    unsafe = trip or (top.safety_critical and ranked[0][1] > 0.4)
+    unsafe = trip or (top.safety_critical and causes[0]["probability"] > 0.4)
     evidence = [a["message"] for a in alarms[-3:]]
     if symptoms:
         evidence.append("Reported: " + "; ".join(symptoms))
     return {
-        "causes": [{"cause_code": fm.code, "description": fm.description, "probability": round(p, 2),
-                    "severity": fm.severity} for fm, p in ranked],
+        "causes": causes,
         "severity": top.severity,
         "safe_to_run": not unsafe,
         "safety_override": trip,
         "evidence": evidence,
+        "model_version": model.version,
+        "model_confidence": causes[0]["probability"],
+        "healthy_probability": round(healthy, 3),
     }
+
+
+def load_or_train_model(fleet: Fleet) -> RepairModel:
+    if MODEL_PATH.exists():
+        return RepairModel.load(MODEL_PATH)
+    model = train(seed=fleet.seed, repair_history=fleet.repair_history)
+    model.save(MODEL_PATH)
+    return model
 
 
 def rank_technicians(fleet: Fleet, site, skills: tuple[str, ...]) -> list[dict[str, Any]]:
@@ -157,6 +171,7 @@ def approvals(diag, urgency, best, loc, parts) -> list[dict[str, Any]]:
 # ---------------------------------------------------------------- build
 def build(seed: int = 42) -> dict[str, Any]:
     fleet = generate_fleet(seed=seed)
+    rmodel = load_or_train_model(fleet)
     rng = random.Random(seed * 7 + 1)
     site_by = {s.site_id: s for s in fleet.sites}
 
@@ -195,7 +210,7 @@ def build(seed: int = 42) -> dict[str, Any]:
         asset = fleet.asset(wo["asset_id"])
         site = site_by[asset.site_id]
         tel = telemetry[asset.asset_id]
-        diag = diagnose(asset, latest(tel["series"]), wo["symptoms"], tel["alarms"])
+        diag = diagnose(rmodel, asset, tel["series"], wo["symptoms"], tel["alarms"])
         _, fm = cat.failure_mode(diag["causes"][0]["cause_code"])
         wo["priority"] = wo["priority"] or URGENCY[fm.severity]
         techs = rank_technicians(fleet, site, fm.skills)
@@ -258,6 +273,7 @@ def build(seed: int = 42) -> dict[str, Any]:
 
     return {
         "generated": {"seed": seed, "now": _iso(NOW), "diagnosis_top1_correct": f"{plans_ok}/{len(wos)}"},
+        "repair_model": rmodel.to_dict(),
         "depots": [{"depot_id": d.depot_id, "city": d.city, "region": d.region, "lat": d.location.lat,
                     "lon": d.location.lon, "has_workshop": d.has_workshop, "has_edge_server": d.has_edge_server,
                     "stock": [{"part_number": p, "qty": q} for p, q in sorted(fleet.stock[d.depot_id].items())]}

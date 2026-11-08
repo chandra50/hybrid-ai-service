@@ -300,12 +300,12 @@ def build(out: Path) -> None:
     s = d.slide("Three places, each with its own agents and data",
                 notes="Device, edge and cloud each hold databases and can run models. The cloud is authoritative; "
                       "the edge sits next to the compressor; the device goes everywhere the technician goes.")
-    cols = [("Device", "Technician tablet in the service van", "Small on-device model",
+    cols = [("Device", "Technician tablet in the service van", "Repair-rec model copy, small LLM",
              ["Mission pack DB: plan copy, manuals index, history", "Outbox: queued updates", "Van stock"]),
-            ("Edge", "Site gateway + depot edge server", "Mid-size model, safety rules",
+            ("Edge", "Site gateway + depot edge server", "Repair-rec copy, mid-size LLM, rules",
              ["Telemetry buffer (7–30 days)", "Safety rules", "Depot mirror: stock, roster, regional knowledge"]),
-            ("Cloud", "Authoritative", "Claude (Opus / Haiku)",
-             ["Repair recommendations DB", "Work orders + ERP", "Knowledge base", "Fleet telemetry"])]
+            ("Cloud", "Authoritative", "Claude; repair-rec model registry",
+             ["Repair recommendations DB", "Model registry (repair-rec-1.0)", "Work orders + ERP", "Knowledge base"])]
     pw = (CW - 2 * 0.6) / 3
     for i, (p, sub, model, dbs) in enumerate(cols):
         x = MX + i * (pw + 0.6)
@@ -367,7 +367,7 @@ def build(out: Path) -> None:
     s = d.slide("Specialist agents, coordinated by an orchestrator",
                 notes="Chips show where each agent can run. The next section shows where they run in each mode.")
     agents = [("Orchestrator", ["Cloud", "Device"], "Owns a work order end to end, plans W1–W6, asks for approvals"),
-              ("Diagnosis", ["Cloud", "Edge", "Device"], "Telemetry, alarms, manuals and past repairs → ranked causes and a safety verdict"),
+              ("Repair-rec model (ML)", ["Cloud", "Edge", "Device"], "A small trained model ranks causes from telemetry, symptoms and history. Same weights everywhere, no tokens"),
               ("Dispatch", ["Cloud", "Edge"], "Deterministic scoring on skills, certifications, distance, workload and SLA"),
               ("Logistics", ["Cloud", "Edge", "Device"], "On site vs workshop; parts from van → depot → warehouse → vendor"),
               ("Field assistant", ["Device"], "Repair plan, LOTO, live readings and findings; uses the best model it can reach"),
@@ -436,7 +436,7 @@ def build(out: Path) -> None:
                 notes="This is what the dashboard's 'Where agents run' view animates: the same agents move between "
                       "places as the link changes.")
     rows = [("Orchestrator", ["Cloud", "Cloud", "Device"], ""),
-            ("Diagnosis", ["Cloud", "Edge", "Edge"], "→ Edge on cloud AI outage · → Device when sensors lost"),
+            ("Repair-rec model", ["Cloud", "Edge", "Edge"], "→ Device copy when sensors lost · no tokens"),
             ("Dispatch", ["Cloud", "Edge", None], "Offline: call the dispatcher"),
             ("Logistics (parts)", ["Cloud", "Edge", "Device"], "Live ERP → depot mirror → van stock"),
             ("Assistant model", ["Cloud", "Edge", "Edge"], "→ Device when the edge is dark"),
@@ -460,7 +460,7 @@ def build(out: Path) -> None:
     # 12 - Mode x workflow -----------------------------------------------
     s = d.slide("Each mode, each workflow", notes="What every workflow does in each mode, with the place that answers.")
     tbl = [["Workflow", "Online", "Limited", "Offline"],
-           ["W1 Diagnosis", "Cloud model, full fleet history", "Edge model on local telemetry", "Edge model + rules (device if sensors lost)"],
+           ["W1 Diagnosis", "Repair-rec model, cloud copy", "Repair-rec model, edge copy", "Edge copy (device copy if sensors lost)"],
            ["W2 Technician", "Live optimizer", "Cloud within deadline, else edge snapshot", "Unavailable: call the dispatcher"],
            ["W3 Location", "Learned + rule score", "Rule score", "Rule score; technician decides"],
            ["W4 Parts", "Live ERP, hard reservation", "Depot mirror, soft reservation", "Van stock only"],
@@ -586,7 +586,7 @@ def build(out: Path) -> None:
 
     # 19 - Demo decisions -------------------------------------------------
     s = d.slide("Demo scope: decisions made", notes="These answer the open questions from the design document, section 11.")
-    dec = [("Equipment", "Compressors only", "Screw, reciprocating, centrifugal, diesel and scroll"),
+    dec = [("Cause ranking", "A trained model", "repair-rec-1.0: 9 KB, 94.5% top-1, runs in all three places"),
            ("Operating modes", "Online, Limited, Offline", "Cloud AI outage and sensors lost are events"),
            ("Places", "Cloud, Edge, Device", "Depot servers are part of the Edge"),
            ("Repair plans", "In a database", "Cloud DB, copied into the mission pack"),
@@ -620,7 +620,7 @@ def build(out: Path) -> None:
 
     # 21 - Close ----------------------------------------------------------
     s = d.slide("What's running today", dark=True, title_size=40, title_box=(0.8, 0.8, 11.5, 0.9), notes="Close with what exists and the next step.")
-    stats = [("3", "places agents move between"), ("3", "modes, plus 2 events"), ("8", "MCP tool contracts"), ("65", "tests passing")]
+    stats = [("3", "places agents move between"), ("3", "modes, plus 2 events"), ("1", "trained model in all 3 places"), ("75", "tests passing")]
     sw4 = 11.7 / 4
     for i, (n, l) in enumerate(stats):
         x = 0.8 + i * sw4

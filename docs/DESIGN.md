@@ -1,6 +1,6 @@
 # hybrid-ai: Field Service Agent Design
 
-**Status:** Draft v0.4 · 2026-11-08 (three modes, three places; demo scope in §11)
+**Status:** Draft v0.5 · 2026-11-08 (three modes, three places, repair recommendation model; demo scope in §11)
 **Scope:** MCP-based agents that help maintain a fleet of industrial compressors spread across California, and keep working when the network is slow, intermittent or gone.
 
 ---
@@ -54,9 +54,9 @@ flowchart LR
 
 | Place | Runs on | Models | Databases | Authoritative for |
 |------|---------|--------|-----------|-------------------|
-| **Cloud** | Cloud | Claude: `claude-opus-5-5` for diagnosis and planning, `claude-haiku-5-5` for short answers | Repair recommendations DB, CMMS/ERP, knowledge base, fleet telemetry store | Work orders, assignments, reservations, repair plans |
-| **Edge** | Site gateway at the compressor, plus the depot's edge server | Mid-size local model; deterministic safety rules and anomaly models | Telemetry buffer (7–30 days), safety rules, depot mirror (stock, roster snapshot, regional knowledge) | Live equipment state and alarms; depot stock |
-| **Device** | Technician's rugged tablet in the service van | Small on-device model | Mission pack DB (repair plan copy, manuals index, history), outbox, van stock | On-site observations, parts used from the van |
+| **Cloud** | Cloud | Claude: `claude-opus-5-5` for diagnosis and planning, `claude-haiku-5-5` for short answers | Repair recommendations DB, model registry, CMMS/ERP, knowledge base, fleet telemetry store | Work orders, assignments, reservations, repair plans, model versions |
+| **Edge** | Site gateway at the compressor, plus the depot's edge server | Repair recommendation model copy; mid-size local LLM; deterministic safety rules | Telemetry buffer (7–30 days), safety rules, depot mirror (stock, roster snapshot, regional knowledge) | Live equipment state and alarms; depot stock |
+| **Device** | Technician's rugged tablet in the service van | Repair recommendation model copy; small on-device LLM | Mission pack DB (repair plan copy, manuals index, history), outbox, van stock | On-site observations, parts used from the van |
 
 ### 2.1 One MCP contract, many implementations
 
@@ -98,7 +98,7 @@ A small local service that agents use as their single MCP endpoint. For each cal
 4. Turns writes into **outbox events** when the cloud can't be reached.
 5. Labels the response with provenance, and logs where it ran, why, and its cost in time and tokens.
 
-Agents stay simple: they call `check_parts` and the router decides where the answer comes from. **Agents therefore move:** the same diagnosis agent runs in the cloud when Online, on the edge model next to the compressor's data when the link is Limited or gone, and on the device when the edge is dark too.
+Agents stay simple: they call `check_parts` and the router decides where the answer comes from. **Work therefore moves:** the repair recommendation model runs from the cloud copy when Online, from the edge copy next to the compressor's data when the link is Limited or gone, and from the device copy when the edge is dark too; the LLM that explains the answer moves the same way (Claude → edge model → device model).
 
 ---
 
@@ -107,7 +107,7 @@ Agents stay simple: they call `check_parts` and the router decides where the ans
 | Agent | Usually runs | Moves to | Role |
 |-------|--------------|----------|------|
 | **Orchestrator** | Cloud | Device (reduced) when offline | Owns a work order end to end; plans W1–W6; asks for approvals. |
-| **Diagnosis** | Cloud | Edge (Limited, Offline, cloud AI outage) → Device (sensors lost) | Telemetry, alarms, manuals and past repairs → ranked causes and a safety verdict. |
+| **Repair recommendation model** (trained ML model, not an agent) | Cloud | Edge (Limited, Offline) → Device (sensors lost) | Ranks causes from telemetry, symptoms and history priors (§4.3). Same weights everywhere, no tokens; a cloud AI outage doesn't affect it. |
 | **Dispatch** | Cloud | Edge roster snapshot (Limited); unavailable Offline | Scores technicians on skills, certifications, distance, workload and SLA. Deterministic, so it needs no LLM. |
 | **Logistics** | Cloud | Edge depot mirror (Limited) → Device van stock (Offline) | On-site vs workshop; parts from van → depot → warehouse → vendor; reservations. |
 | **Field assistant** | Device | (stays on device) | Answers the technician, walks the repair plan and LOTO, captures findings. Uses the best model it can reach. |
@@ -146,7 +146,17 @@ sequenceDiagram
 
 Each work order's plan is stored in the **repair recommendations database**: ranked causes, an ordered step list (lockout → verify → repair → test → close-out), parts and references (manual sections, past repairs on this compressor, similar fixes elsewhere). The assigned technician works through the steps. A copy travels in the mission pack; step updates made offline replay once, keyed by idempotency key.
 
-### 4.3 Repair location (W3)
+### 4.3 Repair recommendation model
+
+A small **trained model** (`repair-rec-1.0`), not an LLM, ranks the likely causes for a compressor:
+
+- **Inputs:** each signal's deviation from baseline and its recent trend, reported symptoms, and how often each cause appeared in past repairs (priors).
+- **Form:** one multinomial logistic regression per compressor type; classes are that type's failure modes plus "healthy". About 9 KB of JSON weights.
+- **Training:** in the cloud, on simulated telemetry and symptoms plus the fleet's repair history. Held-out accuracy: 94.5% top-1, 98.1% top-2 (demo data).
+- **Deployment:** the cloud model registry holds the versions; the same file is copied to every edge and into every mission pack. It runs in milliseconds with no network and no tokens, and still works from symptoms alone when sensors are lost.
+- **Division of labour:** the model ranks; the planning rules turn the top cause into the stored plan (steps, parts, references); an LLM only explains the result in words. Each plan records the model version and its confidence.
+
+### 4.4 Repair location (W3)
 
 An explainable factor score that works everywhere; the cloud can refine it with a learned model.
 
@@ -157,7 +167,7 @@ An explainable factor score that works everywhere; the cloud can refine it with 
 | Special tools | Not needed | Needed |
 | Downtime cost | High | Tolerable |
 
-### 4.4 Parts (W4)
+### 4.5 Parts (W4)
 
 Search order: **van → nearby vans → depot → central warehouse → vendor**. Online: live ERP and hard reservation. Limited: depot mirror at the edge, soft reservation. Offline: van stock only; parts used are logged to the outbox. The cloud is authoritative: if two soft reservations collide, the earlier higher-priority work order wins and the other gets an alternative source.
 
@@ -193,7 +203,7 @@ stateDiagram-v2
 
 | Workflow | Online | Limited | Offline |
 |----------|--------|---------|---------|
-| W1 Diagnosis | Cloud model, full fleet history | Edge model on local telemetry | Edge model + rules (device if sensors lost) |
+| W1 Diagnosis | Repair-rec model, cloud copy | Repair-rec model, edge copy on local telemetry | Edge copy (device copy from symptoms if sensors lost) |
 | W2 Technician | Live optimizer | Cloud within deadline, else edge roster snapshot (provisional) | Unavailable: call the dispatcher |
 | W3 Location | Learned + rule score | Rule score | Rule score; technician decides |
 | W4 Parts | Live ERP, hard reservation | Depot mirror, soft reservation | Van stock only |
@@ -265,9 +275,11 @@ Raw data stays in the edge buffer. The edge sends **features** (RMS, trends, ano
 hybrid-ai/
 ├── docs/                 # this design, slide decks
 ├── dashboard/            # demo web app (supervisor, technician, walkthrough)
+├── models/               # exported model weights (repair-rec-1.0.json)
 ├── src/hybrid_ai/
 │   ├── contracts/        # MCP tool schemas + provenance envelope
 │   ├── sim/              # compressor fleet, telemetry and network-mode simulators
+│   ├── models/           # repair recommendation model: training + predict
 │   └── demo/             # demo data, repair recommendations DB, API server
 ├── tools/                # deck builders
 └── tests/
@@ -301,6 +313,7 @@ hybrid-ai/
 | 7 | Equipment classes | **Industrial compressors only.** | Rotary screw, two-stage reciprocating, centrifugal (4.16 kV motor), portable diesel, oil-free scroll. |
 | 8 | Repair recommendations | **Stored in a database.** | SQLite behind the work-orders MCP server; the assigned technician works from it (§4.2). |
 | 9 | Operating modes | **Three: Online, Limited, Offline.** | Cloud AI outage and sensors lost are events inside a mode; places are Cloud, Edge and Device. |
+| 10 | Cause ranking | **A trained repair recommendation model.** | Replaces the hand-written scoring; same weights in every place (§4.3). |
 
 ### 11.1 Approval rules
 

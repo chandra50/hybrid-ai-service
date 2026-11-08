@@ -28,6 +28,25 @@
     "device-local-3b": { prefill: 600, decode: 25 },
   };
   const NET = { ONLINE: { rtt: 90, kbps: 10000 }, LIMITED: { rtt: 700, kbps: 256 }, OFFLINE: { rtt: 0, kbps: 1 } };
+  const RM = window.HYBRID_DATA.repair_model;   // trained repair recommendation model (same weights in every place)
+
+  // JavaScript port of hybrid_ai.models.repair_model.predict: runs in the browser exactly as on device/edge/cloud.
+  function rmPredict(assetModel, readings, trends, symptoms) {
+    const tm = RM.types[assetModel], th = window.HYBRID_DATA.telemetry, sym = new Set(symptoms || []);
+    const base = {};
+    for (const a of window.HYBRID_DATA.assets) if (a.model === assetModel) { Object.entries(th[a.asset_id].thresholds).forEach(([k, v]) => (base[k] = v.baseline)); break; }
+    const x = tm.features.map((f) => {
+      const [kind, name] = [f.slice(0, f.indexOf(":")), f.slice(f.indexOf(":") + 1)];
+      if (f === "has_telemetry") return readings ? 1 : 0;
+      if (kind === "dev") return readings && name in readings ? (readings[name] - base[name]) / base[name] : 0;
+      if (kind === "trend") return trends && name in trends ? trends[name] : 0;
+      return sym.has(name) ? 1 : 0;
+    });
+    const xs = x.map((v, j) => (v - tm.mean[j]) / tm.std[j]);
+    const z = tm.weights.map((w, k) => tm.bias[k] + tm.log_prior[k] + w.reduce((acc, wj, j) => acc + wj * xs[j], 0));
+    const m = Math.max(...z), e = z.map((v) => Math.exp(v - m)), t = e.reduce((a, b) => a + b, 0);
+    return tm.classes.map((c, k) => ({ cause_code: c, probability: e[k] / t })).sort((a, b) => b.probability - a.probability);
+  }
 
   // ------------------------------------------------------------------ state
   const byId = (arr, key) => Object.fromEntries(arr.map((x) => [x[key], x]));
@@ -63,6 +82,7 @@
   const fmtMs = (ms) => (ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1)} s`);
   const fmtTok = (n) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
   const usd = (n) => "$" + n.toLocaleString("en-US");
+  const pct = (p) => (p >= 0.995 ? ">99%" : `${Math.round(p * 100)}%`);
   const mode = () => MODES[state.mode];
   const offlineAge = () => (state.offlineSince == null ? null : Math.max(0, state.simOffset - state.offlineSince) + 1800);
   const isField = (who) => who !== "supervisor";
@@ -85,7 +105,8 @@
       ms += n.rtt + ((p.kb || 2) * 8 / n.kbps) * 1000;
     } else if (p.tier === "edge") ms += isField(p.who) ? 15 : NET[state.mode].rtt || 90;
     else ms += 5;
-    if (p.model) ms += (p.tin / MODELS[p.model].prefill + p.tout / MODELS[p.model].decode) * 1000;
+    if (p.model && MODELS[p.model]) ms += (p.tin / MODELS[p.model].prefill + p.tout / MODELS[p.model].decode) * 1000;
+    else if (p.model === RM.version) ms += 2 + Math.random() * 4;   // tiny model: a few ms anywhere
     else ms += 20 + Math.random() * 40;
     return Math.round(ms * (0.85 + Math.random() * 0.3));
   }
@@ -95,12 +116,10 @@
     const field = isField(who), cloud = cloudReach(who), M = field ? modeLabel() : "Office (online)";
     const P = (tier, why, extra = {}) => ({ tier, why, model: null, tin: 0, tout: 0, kb: 2, status: "ok", ...extra });
     switch (tool) {
-      case "diagnose_issue":
-        if (state.sensorsLost && field) return P("device", `${M}: edge is dark, so the device ranks causes from what the technician observes`, { model: "device-local-3b", tin: 500, tout: 120 });
-        if (cloud && !state.aiDown && !(field && state.mode === "LIMITED")) return P("cloud", `${M}: cloud reachable, so the large model with full fleet history`, { model: "claude-opus-5-5", tin: 2600, tout: 260, kb: 40 });
-        if (edgeAlive() && (field || state.mode !== "OFFLINE")) return P("edge", state.aiDown ? `${M}: cloud AI failing, so the edge model next to the compressor's data` : `${M}: weak or no link, so the edge model runs next to the data`, { model: "edge-local-14b", tin: 1800, tout: 220 });
-        if (!field) return P("cloud", `${M}: cloud AI down and site unreachable, so deterministic rules in the cloud`);
-        return P("device", `${M}: device model over the mission pack`, { model: "device-local-3b", tin: 1400, tout: 180 });
+      case "diagnose_issue":   // the repair recommendation model: same weights in every place, no tokens
+        if (state.sensorsLost && field) return P("device", `${M}: edge is dark, so the device copy of the model ranks causes from observed symptoms`, { model: RM.version });
+        if (!field || (cloud && state.mode === "ONLINE")) return P("cloud", `${M}: cloud copy with full fleet features${state.aiDown ? "; it's not an LLM, so the AI outage doesn't matter" : ""}`, { model: RM.version, kb: 6 });
+        return P("edge", `${M}: edge copy runs next to the compressor's telemetry, no WAN needed`, { model: RM.version });
       case "find_technicians":
         if (cloud) return P("cloud", state.aiDown ? `${M}: dispatch optimizer is deterministic, so the AI outage doesn't matter` : field && state.mode === "LIMITED" ? `${M}: cloud answered within the 3 s deadline` : `${M}: live roster, GPS and SLA`, { kb: 6 });
         if (state.mode === "LIMITED") return P("edge", `${M}: cloud missed the 3 s deadline, so the depot roster snapshot (provisional)`);
@@ -145,12 +164,12 @@
   }
 
   // Which agent / database a tool belongs to (for the topology view)
-  const TOOL_AGENT = { diagnose_issue: "diagnosis", find_technicians: "dispatch", recommend_repair_location: "logistics", check_parts: "logistics", reserve_parts: "logistics", compose_answer: "assistant" };
+  const TOOL_AGENT = { diagnose_issue: "repairrec", find_technicians: "dispatch", recommend_repair_location: "logistics", check_parts: "logistics", reserve_parts: "logistics", compose_answer: "assistant" };
   function toolDb(tool, tier) {
     const m = {
-      cloud: { "repair_db.get_plan": "repairdb", "repair_db.update_step": "repairdb", "repair_db.outcome": "repairdb", update_work_order: "cmms", search_knowledge: "kb", get_live_telemetry: "fleettel", check_parts: "cmms", reserve_parts: "cmms", find_technicians: "cmms", diagnose_issue: "kb", sync_mission_pack: "repairdb" },
-      edge: { get_live_telemetry: "telbuf", diagnose_issue: "telbuf", check_parts: "mirror", find_technicians: "mirror", compose_answer: "telbuf" },
-      device: { "repair_db.get_plan": "pack", search_knowledge: "pack", "repair_db.update_step": "outbox", "repair_db.outcome": "outbox", update_work_order: "outbox", reserve_parts: "outbox", check_parts: "van", diagnose_issue: "pack", local_status: "outbox" },
+      cloud: { "repair_db.get_plan": "repairdb", "repair_db.update_step": "repairdb", "repair_db.outcome": "repairdb", update_work_order: "cmms", search_knowledge: "kb", get_live_telemetry: "fleettel", check_parts: "cmms", reserve_parts: "cmms", find_technicians: "cmms", diagnose_issue: "registry", sync_mission_pack: "repairdb" },
+      edge: { get_live_telemetry: "telbuf", diagnose_issue: "edgemodel", check_parts: "mirror", find_technicians: "mirror", compose_answer: "telbuf" },
+      device: { "repair_db.get_plan": "pack", search_knowledge: "pack", "repair_db.update_step": "outbox", "repair_db.outcome": "outbox", update_work_order: "outbox", reserve_parts: "outbox", check_parts: "van", diagnose_issue: "devmodel", local_status: "outbox" },
     };
     return m[tier]?.[tool];
   }
@@ -213,7 +232,8 @@
       work_order_id: w.work_order_id, asset_id: a.asset_id, model: a.model, category: a.category, site_name: a.site_name,
       priority: w.priority, status: w.status, cause_code: top.cause_code, cause_description: top.description,
       severity: w.diagnosis.severity, safe_to_run: w.diagnosis.safe_to_run, safety_override: w.diagnosis.safety_override,
-      repair_location: w.location.location, est_hours: w.est_hours, version: 1, generated_by: "diagnosis+logistics agents (rule fallback)",
+      repair_location: w.location.location, est_hours: w.est_hours, version: 1, generated_by: `${RM.version} model + planning rules`,
+      model_version: RM.version, model_confidence: w.diagnosis.model_confidence,
       causes: w.diagnosis.causes.map((c, i) => ({ rank: i + 1, ...c })),
       steps: steps.map(([phase, instruction], i) => ({ seq: i + 1, phase, instruction, status: "todo" })),
       parts: w.parts.lines.map((p) => ({ part_number: p.part_number, description: p.description, qty: p.qty, source_type: p.pick_type, source_id: p.pick, unit_price: p.unit_price })),
@@ -276,7 +296,7 @@
 
   // ------------------------------------------------------------------ topology: where agents and databases run
   const AGENTS = [
-    { id: "orchestrator", name: "Orchestrator" }, { id: "diagnosis", name: "Diagnosis" }, { id: "dispatch", name: "Dispatch" },
+    { id: "orchestrator", name: "Orchestrator" }, { id: "repairrec", name: "Repair-rec model", kind: "ml" }, { id: "dispatch", name: "Dispatch" },
     { id: "logistics", name: "Logistics" }, { id: "assistant", name: "Assistant model" }, { id: "safety", name: "Safety rules" },
     { id: "field", name: "Field assistant" }, { id: "sync", name: "Sync service" },
   ];
@@ -285,7 +305,7 @@
     const on = state.mode === "ONLINE", lim = state.mode === "LIMITED";
     switch (id) {
       case "orchestrator": return state.mode === "OFFLINE" ? "device" : "cloud";
-      case "diagnosis": return state.sensorsLost ? "device" : on && !state.aiDown ? "cloud" : "edge";
+      case "repairrec": return state.sensorsLost ? "device" : on ? "cloud" : "edge";
       case "dispatch": return on ? "cloud" : lim ? "edge" : "cloud";
       case "logistics": return on ? "cloud" : lim ? "edge" : "device";
       case "assistant": return on && !state.aiDown ? "cloud" : state.sensorsLost ? "device" : "edge";
@@ -306,14 +326,17 @@
     const telOK = !state.sensorsLost;
     const ver = Object.values(state.plans).reduce((m, p) => Math.max(m, p.plan.version || 1), 1);
     return {
-      cloud: [["repairdb", "Repair recommendations DB", `${D.work_orders.length} plans · ${state.api ? "SQLite, live" : "embedded"} · v${ver}`],
+      cloud: [["registry", "Model registry", `${RM.version} · top-1 ${Math.round(RM.metrics.top1 * 100)}% on held-out data`],
+              ["repairdb", "Repair recommendations DB", `${D.work_orders.length} plans · ${state.api ? "SQLite, live" : "embedded"} · v${ver}`],
               ["cmms", "Work orders + ERP", "orders, stock, roster"],
               ["kb", "Knowledge base", "manuals, repair history"],
               ["fleettel", "Fleet telemetry", telOK && state.mode !== "OFFLINE" ? `fed by edge · ${fmtAge(mode().tel)}` : "not updating"]],
-      edge: [["telbuf", "Telemetry buffer", telOK ? "live · 7–30 days" : "dark (no power)"],
+      edge: [["edgemodel", "Repair-rec model copy", telOK ? `${RM.version} · runs on live telemetry` : "dark (no power)"],
+             ["telbuf", "Telemetry buffer", telOK ? "live · 7–30 days" : "dark (no power)"],
              ["rules", "Safety rules", telOK ? "active" : "dark"],
              ["mirror", "Depot mirror", "stock, roster, regional KB · 3 h old"]],
       device: [["pack", "Mission pack DB", plan ? `plan v${plan.plan.version} · ${plan.source === "db" ? "synced" : "local copy"}` : "manuals, history"],
+               ["devmodel", "Repair-rec model copy", `${RM.version} · 9 KB · symptoms or readings`],
                ["outbox", "Outbox", queued ? `${queued} queued` : "empty"],
                ["van", "Van stock", `${vanN} parts`]],
     };
@@ -372,11 +395,12 @@
       chip.style.width = `${cw}px`;
       chip.style.transform = `translate(${area.left - box.left + (i % perRow) * (cw + GAP)}px, ${area.top - box.top + Math.floor(i / perRow) * (CH + GAP)}px)`;
       const st = agentState(a.id);
-      chip.className = `agent at-${p} ${st}`;
+      chip.className = `agent at-${p} ${st} ${a.kind === "ml" ? "ml" : ""}`;
       chip.title = `${a.name}: running on ${PLACE[p]}${st ? ` (${st})` : ""}`;
-      chip.querySelector(".ag-model").textContent = (a.id === "assistant" || a.id === "diagnosis") && !st ? MODEL_AT[p] : st;
+      chip.querySelector(".ag-model").textContent = a.id === "assistant" && !st ? MODEL_AT[p] : a.id === "repairrec" ? "0 tokens" : st;
     }
     drawLinks();
+    if (!el.classList.contains("ready")) requestAnimationFrame(() => el.classList.add("ready"));  // animate moves, not the first placement
   }
   function zoneHead(p) {
     const el = $("#topo"), box = el.getBoundingClientRect(), r = el.querySelector(`.zone[data-place="${p}"] .zone-h`).getBoundingClientRect();
@@ -511,7 +535,7 @@
     const al = T.alarms.slice(-3).map((a) => `<div><span class="pill ${a.severity === "critical" ? "pri-urgent" : "pri-soon"}">${esc(a.code)}</span> <span class="muted">${esc(a.ts.slice(11, 16))}</span></div>`).join("");
     return `${stale ? `<div class="note">Last known values, ${fmtAge(ageS)}. The site isn't sending right now.</div>` : ""}${T.series.map((s) => spark(s.signal, s, T.thresholds[s.signal], stale)).join("")}${al ? `<div class="sub" style="margin-top:4px">Recent alarms</div>${al}` : ""}`;
   }
-  const causesBlock = (causes) => causes.map((c) => `<div class="cause"><span>${esc(c.description)} <span class="muted">${esc(c.cause_code)}</span></span><div class="bar"><span style="width:${Math.round(c.probability * 100)}%"></span></div><b>${Math.round(c.probability * 100)}%</b></div>`).join("");
+  const causesBlock = (causes) => causes.map((c) => `<div class="cause"><span>${esc(c.description)} <span class="muted">${esc(c.cause_code)}</span></span><div class="bar"><span style="width:${Math.round(c.probability * 100)}%"></span></div><b>${pct(c.probability)}</b></div>`).join("");
 
   // ------------------------------------------------------------------ KPIs
   function kpis() {
@@ -556,7 +580,7 @@
     return `<h3 style="margin-top:22px">${esc(w.work_order_id)} · ${esc(a.asset_id)}</h3>
       <div class="sub">${esc(a.category)} · ${esc(a.site_name)} · criticality ${esc(a.criticality)} · site coverage <b>${esc(a.coverage)}</b></div>
       ${!d.safe_to_run ? `<div class="safety">${d.safety_override ? "Unsafe to run: edge safety rule fired. Agents cannot override this." : "Unsafe to run: shutdown recommended."}</div>` : ""}
-      <h3><span><span class="wf">W1</span> Diagnosis</span>${p1.html}</h3>${causesBlock(d.causes)}
+      <h3><span><span class="wf">W1</span> Diagnosis</span>${p1.html}</h3><div class="sub">Ranked by the repair recommendation model <b>${esc(RM.version)}</b> · ${pct(d.model_confidence || 0)} on the top cause · no tokens</div>${causesBlock(d.causes)}
       <h3><span><span class="wf">W2</span> Technician</span>${p2.html}</h3><table class="mini"><tr><th>Technician</th><th>Score</th><th>Drive</th><th>Status</th></tr>${techs}</table>
       <div class="sub">Needs: ${esc(w.skills_required.join(", "))} · est. ${w.est_hours} h</div>
       <h3><span><span class="wf">W3</span> Repair location</span>${p3.html}</h3>
@@ -623,7 +647,7 @@
     const done = plan.steps.filter((s) => local[s.seq] || s.status === "done").length;
     const refs = plan.references.map((r) => `<details><summary>${esc(r.kind === "manual" ? "Manual" : r.kind === "asset_repair" ? "This compressor" : "Similar fix")} · ${esc(r.title)}</summary><pre>${esc(r.detail)}</pre></details>`).join("");
     return `<h3><span>Repair recommendation</span>${src}</h3>
-      <div class="card"><b>${esc(plan.cause_description)}</b> <span class="muted">${esc(plan.cause_code)}</span><div class="sub">${esc(plan.generated_by)} · est. ${plan.est_hours} h · ${plan.repair_location === "workshop" ? "workshop job" : "on site"}</div>
+      <div class="card"><b>${esc(plan.cause_description)}</b> <span class="muted">${esc(plan.cause_code)}</span><div class="sub">${esc(plan.generated_by)}${plan.model_confidence ? ` (${pct(plan.model_confidence)} confident)` : ""} · est. ${plan.est_hours} h · ${plan.repair_location === "workshop" ? "workshop job" : "on site"}</div>
         <div class="progress"><span style="width:${Math.round((done / plan.steps.length) * 100)}%"></span></div><div class="sub">${done} of ${plan.steps.length} steps done</div></div>
       ${steps}<h3>References in this plan</h3>${refs || '<div class="sub">None</div>'}`;
   }
@@ -636,11 +660,12 @@
         const tr = (D.manuals[a.model] || []).filter((m) => m.title.startsWith("Troubleshooting"));
         const symOf = (m) => (m.text.match(/Typical symptoms: ([^.]*)\./) || ["", ""])[1].split("; ").filter(Boolean);
         const syms = [...new Set(tr.flatMap(symOf))], sel = state.inspection[w.work_order_id] || new Set();
-        const ranked = tr.map((m) => ({ title: m.title.replace("Troubleshooting: ", ""), code: (m.text.match(/Fault code (\S+)\./) || ["", ""])[1], hit: symOf(m).filter((x) => sel.has(x)).length })).sort((x, y) => y.hit - x.hit);
-        return `<h3><span><span class="wf">W1</span> Guided inspection</span><span class="prov device">Device <span class="conf">· sensors lost</span></span></h3>
-          <div class="note">No live data from the site gateway. Tick what you observe; the device ranks causes from the mission pack.</div>
+        const ranked = rmPredict(a.model, null, null, [...sel]).map((r) => ({ code: r.cause_code, p: r.probability,
+          title: r.cause_code === "HEALTHY" ? "No fault found" : (tr.find((m) => m.text.includes(`Fault code ${r.cause_code}.`))?.title || r.cause_code).replace("Troubleshooting: ", "") }));
+        return `<h3><span><span class="wf">W1</span> Guided inspection</span><span class="prov device">Device <span class="conf">· ${esc(RM.version)} · sensors lost</span></span></h3>
+          <div class="note">No live data from the site gateway. Tick what you observe; the device copy of the repair recommendation model re-ranks causes from your symptoms, with no network and no tokens.</div>
           ${syms.map((s) => `<label class="check"><input type="checkbox" data-sym="${esc(s)}" ${sel.has(s) ? "checked" : ""}><span>${esc(s)}</span></label>`).join("")}
-          <h3>Likely causes</h3>${ranked.map((r) => `<div class="cause"><span>${esc(r.title)} <span class="muted">${esc(r.code)}</span></span><div class="bar"><span style="width:${Math.min(r.hit * 34, 100)}%"></span></div><b>${r.hit}</b></div>`).join("")}`;
+          <h3>Likely causes</h3>${ranked.map((r) => `<div class="cause"><span>${esc(r.title)} <span class="muted">${esc(r.code)}</span></span><div class="bar"><span style="width:${Math.round(r.p * 100)}%"></span></div><b>${Math.round(r.p * 100)}%</b></div>`).join("")}`;
       }
       return `<h3><span><span class="wf">W1</span> Diagnosis</span>${p.html}</h3><div class="sub">${esc(p.why)}</div>${causesBlock(w.diagnosis.causes)}<h3>Evidence</h3>${w.diagnosis.evidence.map((e) => `<div class="sub">• ${esc(e)}</div>`).join("") || '<div class="sub">No alarms yet</div>'}`;
     }
@@ -709,7 +734,7 @@
       if (state.sensorsLost && isField(who)) answer = `No live data from the gateway. From the mission pack, start by checking ${top.description.toLowerCase()} (${top.cause_code}). Tick symptoms on the Diagnose tab and I'll re-rank.`;
       else if (intent === "safety" && isField(who) && repairDone(w)) answer = `Yes. The repair steps are done: remove your locks in reverse order, restart, and watch ${Object.keys(D.telemetry[a.asset_id].thresholds).slice(0, 2).join(" and ")} for 15 minutes (the test step).`;
       else if (intent === "safety") answer = d.safe_to_run ? `It can keep running while you prepare; likely ${top.description.toLowerCase()}. Restart after a repair only once the lockout steps are reversed and the test step is done.` : `No. ${d.safety_override ? "The edge safety rule tripped, and nobody can override that." : "Shutdown is recommended."} Keep it locked out until the repair and test steps are done.`;
-      else answer = `Most likely ${top.description.toLowerCase()} (${Math.round(top.probability * 100)}%), then ${d.causes[1].description.toLowerCase()} (${Math.round(d.causes[1].probability * 100)}%). ${d.safe_to_run ? "Safe to keep running for now." : "Do not run it."} Evidence: ${d.evidence[0] || "reported symptoms"}.`;
+      else answer = `The repair recommendation model says most likely ${top.description.toLowerCase()} (${pct(top.probability)}), then ${d.causes[1].description.toLowerCase()} (${Math.round(d.causes[1].probability * 100)}%). ${d.safe_to_run ? "Safe to keep running for now." : "Do not run it."} Evidence: ${d.evidence[0] || "reported symptoms"}.`;
     } else if (intent === "telemetry") {
       tool = callTool("get_live_telemetry", who, q, { via });
       if (tool.status === "failed") answer = "The site gateway isn't reporting, so there are no live readings. Take manual readings and log them in your findings.";
@@ -809,6 +834,10 @@
         did(i, `Lockout steps 1–${stepsOf("safety").length} done (P0, queued in the outbox)`);
       }),
       S("10:30", "OFFLINE", { sensorsLost: true }, 1, "Repair, gateway powered down", `With the compressor isolated, the site gateway goes dark too. The device model takes over; the repair continues from the plan.`, async (i) => {
+        const seen = (w.diagnosis.evidence.find((e) => e.startsWith("Reported: ")) || "").replace("Reported: ", "").split("; ").filter(Boolean);
+        const rr = rmPredict(a.model, null, null, seen.length ? seen : [cat0(w)]);
+        callTool("diagnose_issue", who, `Confirm cause from observed symptoms (${seen.length || 1})`);
+        did(i, `Device copy of ${RM.version} re-ranked from symptoms only: ${rr[0].cause_code} ${Math.round(rr[0].probability * 100)}%, no network, 0 tokens`);
         for (const s of [...stepsOf("verify"), ...stepsOf("repair")]) { doStep(who, wo, s.seq, t.technician_id); await sleep(120); }
         for (const l of w.parts.lines) if ((van[l.part_number] || 0) > 0) { van[l.part_number] -= 1; record(who, "P1", wo, `Used 1 × ${l.part_number} from van`, "parts"); }
         await say(i, "Is it safe to restart?");
@@ -834,6 +863,8 @@
       }),
     ];
   }
+  // first listed symptom of the top-ranked cause (used when nothing was reported)
+  function cat0(w) { const m = (D.manuals[ASSETS[w.asset_id].model] || []).find((x) => x.text.includes(`Fault code ${w.diagnosis.causes[0].cause_code}.`)); return ((m?.text.match(/Typical symptoms: ([^;.]*)/) || ["", ""])[1]); }
   let WT_STEPS = null;
   async function runWtStep() {
     if (WT.running) return;
@@ -967,7 +998,7 @@
     else if (t.id === "ev-sensors") { state.sensorsLost = t.checked; state.agentAt = {}; stopScenario(); render(); }
     else if (t.id === "scenario-select") { stopScenario(); state.scenario = t.value || null; state.scenarioT = 0; drawScenarioBar(); }
     else if (t.dataset.step) { doStep("technician", myJobs()[0].work_order_id, Number(t.dataset.step), state.techId); render(); }
-    else if (t.dataset.sym !== undefined) { const w = myJobs()[0], set = (state.inspection[w.work_order_id] ||= new Set()); t.checked ? set.add(t.dataset.sym) : set.delete(t.dataset.sym); render(); }
+    else if (t.dataset.sym !== undefined) { const w = myJobs()[0], set = (state.inspection[w.work_order_id] ||= new Set()); t.checked ? set.add(t.dataset.sym) : set.delete(t.dataset.sym); callTool("diagnose_issue", "technician", `Re-rank causes from ${set.size} observed symptom${set.size === 1 ? "" : "s"}`); render(); }
   });
   $("#as-form").addEventListener("submit", (e) => {
     e.preventDefault();

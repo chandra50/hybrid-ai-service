@@ -308,3 +308,7 @@ body { height: 100vh; overflow: hidden; }
 .pkt { stroke: #fff; stroke-width: 1.5; } .pkt.req { fill: var(--amber); } .pkt.data { fill: var(--teal); } .pkt.sync { fill: var(--ok); } .pkt.queued { fill: var(--bad); }
 @media (max-width: 1180px) { .zones { gap: 26px; } }
 @media (max-width: 900px) { .zones { grid-template-columns: 1fr; gap: 18px; } .topo-links { display: none; } }
+
+/* the repair recommendation model is a different kind of thing from an agent: square chip, dashed outline */
+.agent.ml { border-radius: 6px; outline: 2px dashed rgba(255,255,255,.75); outline-offset: -4px; }
+.topo:not(.ready) .agent { transition: none; }
