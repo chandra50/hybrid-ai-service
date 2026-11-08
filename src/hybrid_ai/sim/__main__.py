@@ -81,13 +81,14 @@ def main(argv: list[str] | None = None) -> None:
     elif args.cmd == "scenario":
         sim = NetworkSim(SCENARIOS[args.name], seed=args.seed)
         links = list(Link)
-        print("t(h)  mode  M6  " + "  ".join(f"{l.value:>12}" for l in links))
+        print("t(h)  mode     events   " + "  ".join(f"{l.value:>13}" for l in links))
         for t in range(0, sim.scenario.duration_s, args.probe_every):
             cells = []
             for link in links:
                 d = sim.transmit(link, args.bytes, t, deadline_ms=10_000)
-                cells.append(f"{(f'{d.latency_ms:.0f}ms' if d.ok else d.reason):>12}")
-            print(f"{t / 3600:4.1f}  {sim.mode_at(t).value:<4}  {'Y' if sim.telemetry_lost_at(t) else '-'}   "
+                cells.append(f"{(f'{d.latency_ms:.0f}ms' if d.ok else d.reason):>13}")
+            ev = ("S" if sim.sensors_lost_at(t) else "-") + ("A" if sim.cloud_ai_down_at(t) else "-")
+            print(f"{t / 3600:4.1f}  {sim.mode_at(t).value:<7}  {ev:<7}  "
                   + "  ".join(cells))
 
 

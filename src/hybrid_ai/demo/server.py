@@ -75,7 +75,7 @@ class Handler(SimpleHTTPRequestHandler):
                 if m:
                     res = repair_db.update_step(self.conn, m.group(1), int(m.group(2)), body["status"], body["by"],
                                                 body["idempotency_key"], body.get("at"), body.get("note"),
-                                                body.get("origin_tier", "field"))
+                                                body.get("origin_tier", "device"))
                     return self._json(200, res)
                 m = re.fullmatch(r"/api/recommendations/([A-Z0-9-]+)/assign", u.path)
                 if m:

@@ -25,7 +25,7 @@ from ..sim.telemetry import _iso, fault_progress, live_telemetry
 NOW = SIM_EPOCH + timedelta(hours=12)
 SEV_RANK = {"low": 0, "medium": 1, "high": 2, "critical": 3}
 URGENCY = {"low": "routine", "medium": "soon", "high": "urgent", "critical": "emergency"}
-COVERAGE_MODE = {"good": "M0", "patchy": "M2", "none": "M5"}
+COVERAGE_MODE = {"good": "ONLINE", "patchy": "LIMITED", "none": "OFFLINE"}
 DRIVE_KMH = 60.0
 ROAD_FACTOR = 1.3
 
@@ -135,7 +135,7 @@ def parts_plan(fleet: Fleet, fm: cat.FailureMode, site, tech) -> dict[str, Any]:
 def approvals(diag, urgency, best, loc, parts) -> list[dict[str, Any]]:
     out = []
     if diag["safety_override"]:
-        out.append({"action": "Shutdown", "rule": "Edge safety rule fired", "outcome": "auto", "approver": "Auto, planner notified"})
+        out.append({"action": "Shutdown", "rule": "Edge safety rule fired", "outcome": "auto", "approver": "Auto, supervisor notified"})
     elif not diag["safe_to_run"]:
         out.append({"action": "Shutdown", "rule": "Unsafe verdict without edge trip", "outcome": "human", "approver": "Site operator"})
     full = best and not best["missing_skills"] and best["available"]
@@ -143,14 +143,14 @@ def approvals(diag, urgency, best, loc, parts) -> list[dict[str, Any]]:
         out.append({"action": "Dispatch", "rule": "Routine or soon, skills matched, on shift", "outcome": "auto", "approver": "Auto"})
     else:
         why = "Urgent/emergency" if urgency in ("urgent", "emergency") else "Missing skills or off shift"
-        out.append({"action": "Dispatch", "rule": why, "outcome": "human", "approver": "Planner"})
+        out.append({"action": "Dispatch", "rule": why, "outcome": "human", "approver": "Supervisor"})
     if parts["all_local"] and parts["total_usd"] < 1000:
         out.append({"action": "Parts", "rule": "Van or depot stock, under $1,000", "outcome": "auto", "approver": "Auto"})
     else:
         why = "Vendor or warehouse order" if not parts["all_local"] else "$1,000 or more"
         out.append({"action": "Parts", "rule": why, "outcome": "human", "approver": "Regional manager"})
     if loc["location"] == "workshop":
-        out.append({"action": "Workshop", "rule": "Any transfer to a workshop", "outcome": "human", "approver": "Planner"})
+        out.append({"action": "Workshop", "rule": "Any transfer to a workshop", "outcome": "human", "approver": "Supervisor"})
     return out
 
 
@@ -252,13 +252,14 @@ def build(seed: int = 42) -> dict[str, Any]:
         v.sort(key=lambda r: r["date"], reverse=True)
 
     scenarios = [{"name": s.name, "description": s.description, "duration_s": s.duration_s,
-                  "segments": [{"start_s": g.start_s, "mode": g.mode.value, "telemetry_lost": g.telemetry_lost,
+                  "segments": [{"start_s": g.start_s, "mode": g.mode.value, "sensors_lost": g.sensors_lost,
+                                "cloud_ai_down": g.cloud_ai_down,
                                 "note": g.note} for g in s.segments]} for s in SCENARIOS.values()]
 
     return {
         "generated": {"seed": seed, "now": _iso(NOW), "diagnosis_top1_correct": f"{plans_ok}/{len(wos)}"},
         "depots": [{"depot_id": d.depot_id, "city": d.city, "region": d.region, "lat": d.location.lat,
-                    "lon": d.location.lon, "has_workshop": d.has_workshop, "has_hub": d.has_hub,
+                    "lon": d.location.lon, "has_workshop": d.has_workshop, "has_edge_server": d.has_edge_server,
                     "stock": [{"part_number": p, "qty": q} for p, q in sorted(fleet.stock[d.depot_id].items())]}
                    for d in fleet.depots],
         "warehouse": fleet.warehouse,

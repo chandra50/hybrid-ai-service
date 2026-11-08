@@ -4,9 +4,9 @@ MCP-based agents for maintaining a fleet of industrial compressors across
 California. The system keeps working when the network is slow, intermittent, or
 gone, and when the cloud AI is unavailable.
 
-See [docs/DESIGN.md](docs/DESIGN.md) for the architecture and the demo-scope decisions (§11): four tiers (edge,
-field, hub, cloud), one MCP contract shared by all of them, and operating modes
-M0–M6.
+See [docs/DESIGN.md](docs/DESIGN.md) for the architecture and the demo-scope decisions (§11): three places
+(cloud, edge, device) that agents move between, one MCP contract shared by all of them, and three operating
+modes (Online, Limited, Offline) plus two events (cloud AI outage, sensors lost).
 
 ## Status: phase 1, contracts and simulators
 
@@ -14,9 +14,9 @@ M0–M6.
 |-------|-------|-------------|
 | MCP tool contracts | `src/hybrid_ai/contracts/tools.json` | JSON Schemas for the 8 tools, shared by every tier |
 | Contract helpers | `src/hybrid_ai/contracts/__init__.py` | Validate inputs/responses; wrap results in the provenance envelope (`source_tier`, `as_of`, `staleness_s`, `confidence`, `authoritative`) |
-| Fleet simulator | `src/hybrid_ai/sim/fleet.py`, `catalog.py` | Deterministic CA fleet sized for the demo (6 depots with hubs, 12 sites, ~30 compressors, 12 technicians), sites with coverage quality, 5 compressor types with failure modes, technicians with skills, stock in the vans/depots/warehouse, repair history, manuals, open work orders, hidden ground-truth faults |
+| Fleet simulator | `src/hybrid_ai/sim/fleet.py`, `catalog.py` | Deterministic CA fleet sized for the demo (6 depots with edge servers, 12 sites, ~30 compressors, 12 technicians), sites with coverage quality, 5 compressor types with failure modes, technicians with skills, stock in the vans/depots/warehouse, repair history, manuals, open work orders, hidden ground-truth faults |
 | Telemetry simulator | `src/hybrid_ai/sim/telemetry.py` | Sensor readings with faults that drift in over time, plus warn/trip alarms. Exports per-asset JSONL files that the edge server replays (the demo stand-in for OPC-UA/Modbus/MQTT) |
-| Network fault injector | `src/hybrid_ai/sim/network.py` | Modes M0–M5 per link, an M6 sensor-loss overlay, and named scenarios (remote site visit, PSPS outage, cloud model outage, satellite backup, sensor failure) |
+| Network fault injector | `src/hybrid_ai/sim/network.py` | Online / Limited / Offline per link, cloud-AI-outage and sensors-lost events, and named scenarios (remote site visit, PSPS outage, cloud AI outage, satellite backup, sensor failure) |
 
 ## Quick start
 
@@ -62,9 +62,10 @@ A web dashboard on OpenStreetMap (Leaflet) with three personas:
 
 Also on every view:
 
-- **Assistant** ("Ask" button): a minimal chat about the selected job. Each answer shows where it ran (cloud, hub or device model) and what it cost.
+- **Where agents run** (default tab next to the map): the Device, Edge and Cloud places with their agents and databases. Agents move between places as the mode changes and as requests run; requests and syncs animate along the links, and the database each request touches lights up.
+- **Assistant** ("Ask" button): a minimal chat about the selected job. Each answer shows where it ran (cloud, edge or device model) and what it cost.
 - **Live requests panel:** every request (screen actions, assistant questions, outbox replays) with the tool, where it ran, why it ran there, time taken and tokens in/out, plus totals by tier.
-- **Hybrid modes:** switch M0–M5 and the M6 overlay by hand, or play a simulator scenario.
+- **Hybrid modes:** switch Online / Limited / Offline, toggle the two events, or play a simulator scenario.
 
 Run it with the API server, which builds the repair recommendations database (SQLite, `data/repair_recommendations.db`) on first start:
 
@@ -83,6 +84,6 @@ Rebuild them with `pip install python-pptx`, then `python tools/build_brief_deck
 
 ## Next: phase 2
 
-A cloud-tier MVP in mode M0. Our own MCP servers (the system of record for the demo,
+A cloud MVP for the Online mode. Our own MCP servers (the system of record for the demo,
 built on the official SDK and seeded from the simulated fleet), rule-based approvals, an orchestrator, and specialist agents running
 workflows W1–W4 end to end with human approval.

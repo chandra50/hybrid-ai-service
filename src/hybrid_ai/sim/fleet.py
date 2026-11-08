@@ -33,7 +33,7 @@ class Depot:
     city: str
     location: Location
     has_workshop: bool
-    has_hub: bool
+    has_edge_server: bool  # depot edge server: regional mirror + mid-size model
 
 
 @dataclass
@@ -171,11 +171,11 @@ def generate_fleet(
 ) -> Fleet:
     rng = random.Random(seed)
 
-    # Depots: every depot is a hub; only the bigger ones have a workshop.
+    # Depots: every depot runs an edge server; only the bigger ones have a workshop.
     depots = [
         Depot(did, region, city, Location(lat, lon),
               has_workshop=did in ("DEP-SAC", "DEP-FAT", "DEP-BFL", "DEP-BSW"),
-              has_hub=True)
+              has_edge_server=True)
         for did, (region, city, lat, lon) in cat.DEPOTS.items()
     ]
     wh_id, wh_city, wh_lat, wh_lon = cat.WAREHOUSE

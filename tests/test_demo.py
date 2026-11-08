@@ -33,7 +33,7 @@ class DemoData(unittest.TestCase):
             c.validate_response("find_technicians", c.envelope({"candidates": w["technicians"]},
                                                                source_tier="cloud", as_of=NOW, now=NOW))
             loc = {k: v for k, v in w["location"].items() if k != "note"}
-            c.validate_response("recommend_repair_location", c.envelope(loc, source_tier="hub", as_of=NOW, now=NOW))
+            c.validate_response("recommend_repair_location", c.envelope(loc, source_tier="edge", as_of=NOW, now=NOW))
 
     def test_approval_rules(self):
         for w in DATA["work_orders"]:

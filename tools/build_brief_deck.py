@@ -13,7 +13,7 @@ from pathlib import Path
 from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from build_deck import (AMBER, CW, INK, MODE, MODE_NAME, MUTED, MX, ON_DARK, ON_DARK_MUTED, SLATE, TEAL,  # noqa: E402
+from build_deck import (AMBER, CW, EVENT, INK, MODE, MODE_NAME, MUTED, MX, ON_DARK, ON_DARK_MUTED, SLATE, TEAL,  # noqa: E402
                         TEXT, TIER, TINT, TINT2, WHITE, Deck, rgb)
 
 C, MID = PP_ALIGN.CENTER, MSO_ANCHOR.MIDDLE
@@ -38,7 +38,7 @@ def build(out: Path) -> None:
                       "patchy or absent, and about one repair in five needed a second visit.")
     stats = [("30", "compressors", "industrial: screw, reciprocating, centrifugal, diesel, scroll"),
              ("12", "remote sites", "valley, desert and foothill locations"),
-             ("6", "depots", "each a regional hub; 4 with workshops"),
+             ("6", "depots", "each with an edge server; 4 with workshops"),
              ("12", "technicians", "in service vans, different skills")]
     sw = (CW - 3 * 0.3) / 4
     for i, (n, l, sub) in enumerate(stats):
@@ -80,20 +80,20 @@ def build(out: Path) -> None:
         d.text(s, x + 0.25, y + 1.5, cw3 - 0.5, 0.85, b, size=14, color=MUTED)
 
     # 4 - Solution -----------------------------------------------------------
-    s = d.slide("The solution: agents that work at every tier",
-                notes="Same MCP tools at every tier; a router decides where each request runs; the repair plan "
-                      "lives in a database and travels with the technician.")
-    tiers = [("Cloud", "Large model, full history, live ERP and dispatch"), ("Hub", "Depot model and regional copies"),
-             ("Field", "Device model, mission pack, outbox"), ("Edge", "Site gateway: live readings and safety rules")]
-    for i, (t, desc) in enumerate(tiers):
+    s = d.slide("Solution: agents move between three places",
+                notes="Same MCP tools in the cloud, at the edge and on the device; a router decides where each "
+                      "request runs; the repair plan lives in a database and travels with the technician.")
+    tiers = [("Cloud", "Cloud", "Large model; repair recommendations DB, ERP, knowledge base"),
+             ("Edge", "Edge (at the compressor)", "Edge model, safety rules; telemetry buffer, depot mirror"),
+             ("Device", "Device (technician)", "Small model; mission pack DB, outbox, van stock")]
+    for i, (t, label, desc) in enumerate(tiers):
         fill, col = TIER[t]
-        y = 1.6 + i * 1.22
-        d.box(s, MX, y, 5.4, 1.0, fill=fill, color=col, anchor=MID,
-              paras=[{"text": {"Field": "Device (technician)", "Edge": "Edge (at the compressor)"}.get(t, t), "bold": True, "size": 17},
-                     {"text": desc, "size": 14}])
-        if i < 3:
-            d.arrow(s, MX + 2.7, y + 1.02, MX + 2.7, y + 1.2, color=MUTED, width=1.5, dash=True, both=True)
-    pts = [("A router picks where each request runs", "Cloud when it can, hub or device when it can't, based on the live network mode."),
+        y = 1.6 + i * 1.62
+        d.box(s, MX, y, 5.4, 1.35, fill=fill, color=col, anchor=MID,
+              paras=[{"text": label, "bold": True, "size": 18}, {"text": desc, "size": 14}])
+        if i < 2:
+            d.arrow(s, MX + 2.7, y + 1.37, MX + 2.7, y + 1.6, color=MUTED, width=1.5, dash=True, both=True)
+    pts = [("A router picks where each request runs", "Cloud when Online, the edge model when the link is Limited or gone, the device when the edge is dark too."),
            ("Every answer is labeled", "Where it ran, why, how fresh it is, and what it cost in time and tokens."),
            ("Repair plans live in a database", "Ranked causes, step-by-step plan, parts and references, synced into the technician's mission pack."),
            ("Nothing is lost offline", "Updates queue in priority order and replay safely once, when the link returns.")]
@@ -122,7 +122,7 @@ def build(out: Path) -> None:
         if i < 3:
             d.arrow(s, x + fw + 0.03, 3.55, x + fw + 0.32, 3.55, color=MUTED, width=1.5)
     d.text(s, MX, 5.15, CW, 0.4, "What's different", size=18, bold=True)
-    gains = ["No guessing about data age: every answer says which tier answered and when",
+    gains = ["No guessing about data age: every answer says which place answered and when",
              "Approvals by rule, so only the decisions that need a person reach one",
              "Knows exactly which technician updates are still in transit"]
     gw = (CW - 2 * 0.3) / 3
@@ -134,23 +134,23 @@ def build(out: Path) -> None:
                 notes="This is the walkthrough persona in the dashboard. The technician follows the repair plan "
                       "from the database; the network changes underneath, the work does not stop.")
     d.chip(s, MX, 1.55, 1.7, 0.42, "Technician", AMBER, TEXT, size=13)
-    journey = [("M0", "Depot", "Plan and mission pack sync; asks what's wrong"),
-               ("M1", "Highway", "Checks parts; a missing one is reserved at the depot"),
-               ("M2", "Approach", "Device answers first; cloud only when a window opens"),
-               ("M5", "On site", "Live readings over the local link; lockout steps logged"),
-               ("M5", "Repair", "Verify, repair and test-run from the plan, fully offline"),
-               ("M5", "Close out", "Findings, parts used and photo go to the outbox"),
-               ("M2", "Driving out", "Safety records and job updates send first"),
-               ("M0", "Back online", "Photo uploads; the database shows the job complete")]
-    jx, js = MX + 0.65, (CW - 1.3) / 7
-    d.line(s, jx, 2.75, jx + 7 * js, 2.75, color=TINT2, width=4)
+    journey = [("ONLINE", "Depot", "Plan copied into the mission pack DB; cloud model answers"),
+               ("LIMITED", "Highway", "Weak signal: the edge model answers; cloud only in windows"),
+               ("OFFLINE", "On site", "Live readings over the local link; lockout steps queued"),
+               ("OFFLINE", "Repair", "Gateway dark: the device model takes over; plan continues"),
+               ("OFFLINE", "Close out", "Test run, findings and photo go to the outbox"),
+               ("LIMITED", "Driving out", "Safety records and job updates replay first"),
+               ("ONLINE", "Back online", "Photo uploads; the cloud DB shows the job complete")]
+    jx, js = MX + 0.75, (CW - 1.5) / 6
+    d.line(s, jx, 2.95, jx + 6 * js, 2.95, color=TINT2, width=4)
     for i, (m, h, b) in enumerate(journey):
         cx = jx + i * js
         fill, col = MODE[m]
-        d.badge(s, cx, 2.75, 0.62, m, fill=fill, color=col, size=13)
-        d.text(s, cx - 0.72, 3.2, 1.44, 0.4, h, size=15, bold=True, align=C)
-        d.text(s, cx - 0.72, 3.6, 1.44, 1.5, b, size=13, color=MUTED, align=C)
-    d.box(s, MX, 5.05, CW, 1.3, fill=TINT, anchor=MID,
+        d.text(s, cx - 0.8, 2.2, 1.6, 0.35, MODE_NAME[m].upper(), size=11, bold=True, color=MUTED, align=C)
+        d.badge(s, cx, 2.95, 0.62, str(i + 1), fill=fill, color=col, size=15)
+        d.text(s, cx - 0.85, 3.4, 1.7, 0.4, h, size=15, bold=True, align=C)
+        d.text(s, cx - 0.85, 3.8, 1.7, 1.2, b, size=13, color=MUTED, align=C)
+    d.box(s, MX, 5.2, CW, 1.3, fill=TINT, anchor=MID,
           paras=[{"runs": [("What's different: ", {"bold": True}),
                            ("the plan, manuals, past fixes, live readings and van stock are on the device. The assistant "
                             "still answers offline, and every step the technician ticks reaches the database later, "
@@ -158,24 +158,22 @@ def build(out: Path) -> None:
 
     # 7 - Hybrid modes -----------------------------------------------------------
     s = d.slide("When the network or the cloud fails",
-                notes="Each row is a network mode from the design. The supervisor column is what the office sees; "
-                      "the technician column is what still works in the field.")
-    rows = [["Mode", "Supervisor sees", "Technician can still"],
-            ["M0  Connected", "Everything live", "Everything, with the large cloud model"],
-            ["M1  Constrained", "Live, slower updates", "All work; photos wait for a better link"],
-            ["M2  Intermittent", "Field updates arrive in bursts", "Device answers first; updates queue"],
-            ["M3  Cloud AI down", "Live data; hub model answers", "Same as normal, slower answers"],
-            ["M4  Hub island", "Updates held at the depot hub", "Hub answers; depot stock is live"],
-            ["M5  Fully offline", "Last known state, marked stale", "Plan, manuals, readings, lockout, outbox"],
-            ["M6  Sensors lost", "No live data, clearly flagged", "Guided inspection instead of telemetry"]]
-    fills = [MODE[f"M{i}"] for i in range(7)]
-    d.table(s, MX, 1.55, [2.9, 4.35, 4.85], rows, row_h=0.62, first_col_fills=fills, size=14)
+                notes="Three modes for the technician's link, and two events that can happen in any mode. The "
+                      "middle column says where the agents run.")
+    rows = [["Mode or event", "Agents run on", "Supervisor sees", "Technician can still"],
+            ["Online", "Cloud (+ edge for live data)", "Everything live", "Everything, with the large cloud model"],
+            ["Limited", "Edge and device; cloud in windows", "Field updates arrive in bursts", "All work; photos wait for Online"],
+            ["Offline", "Edge and device only", "Last known state, marked stale", "Plan, manuals, readings, lockout, outbox"],
+            ["Cloud AI outage", "Edge model; cloud data stays live", "Live data, slower answers", "Same as normal, slower answers"],
+            ["Sensors lost", "Device (edge is dark)", "No live data, clearly flagged", "Guided inspection instead of telemetry"]]
+    fills = [MODE["ONLINE"], MODE["LIMITED"], MODE["OFFLINE"], EVENT, EVENT]
+    d.table(s, MX, 1.55, [2.3, 3.2, 3.1, 3.5], rows, row_h=0.8, first_col_fills=fills, size=14)
 
     # 8 - Proof and next steps ----------------------------------------------------
     s = d.slide("What the demo shows, and what's next", dark=True, title_size=36, title_box=(0.8, 0.7, 11.5, 0.9),
                 notes="Figures are from one walkthrough run in the dashboard; timings vary a little per run "
                       "because the network model has randomness.")
-    proof = [("50+", "requests in one repair, each logged"), ("~45%", "answered without the cloud"),
+    proof = [("50+", "requests in one repair, each logged"), ("~50%", "ran on the edge or the device"),
              ("12 / 12", "repair steps reached the database"), ("0", "updates lost offline")]
     pw = 11.7 / 4
     for i, (n, l) in enumerate(proof):

@@ -87,7 +87,7 @@ class FleetGeneration(unittest.TestCase):
             self.assertLess(len(items), 50, name)
         self.assertGreaterEqual(len(FLEET.active_faults), 3)
         self.assertTrue(any(d.has_workshop for d in FLEET.depots))
-        self.assertTrue(all(d.has_hub for d in FLEET.depots))
+        self.assertTrue(all(d.has_edge_server for d in FLEET.depots))
 
     def test_haversine_sacramento_fresno(self):
         sac, fat = FLEET.depot("DEP-SAC").location, FLEET.depot("DEP-FAT").location
@@ -153,11 +153,12 @@ class Telemetry(unittest.TestCase):
 
 
 class Network(unittest.TestCase):
+    def test_exactly_three_modes(self):
+        self.assertEqual([m.value for m in Mode], ["ONLINE", "LIMITED", "OFFLINE"])
+
     def test_every_mode_has_every_link(self):
         from hybrid_ai.sim.network import PROFILES
         for mode in Mode:
-            if mode is Mode.M6_EQUIPMENT_DATA_LOST:
-                continue
             self.assertEqual(set(PROFILES[mode]), set(Link), mode)
 
     def test_scenarios_well_formed(self):
@@ -167,71 +168,63 @@ class Network(unittest.TestCase):
             self.assertEqual(starts, sorted(starts), s.name)
             self.assertLess(starts[-1], s.duration_s, s.name)
 
-    def test_all_modes_covered_by_scenarios(self):
-        modes = {seg.mode for s in SCENARIOS.values() for seg in s.segments}
-        self.assertEqual(modes, set(Mode) - {Mode.M6_EQUIPMENT_DATA_LOST})
-        self.assertTrue(any(seg.telemetry_lost for s in SCENARIOS.values() for seg in s.segments))
+    def test_scenarios_cover_all_modes_and_events(self):
+        segs = [seg for s in SCENARIOS.values() for seg in s.segments]
+        self.assertEqual({seg.mode for seg in segs}, set(Mode))
+        self.assertTrue(any(seg.sensors_lost for seg in segs))
+        self.assertTrue(any(seg.cloud_ai_down for seg in segs))
 
-    def _sim(self, mode, telemetry_lost=False, seed=1):
-        return NetworkSim(Scenario("t", "", (Segment(0, mode, telemetry_lost),), 3600), seed=seed)
+    def _sim(self, mode, sensors_lost=False, cloud_ai_down=False, seed=1):
+        return NetworkSim(Scenario("t", "", (Segment(0, mode, sensors_lost, cloud_ai_down),), 3600), seed=seed)
 
-    def test_m0_everything_delivers(self):
-        sim = self._sim(Mode.M0_CONNECTED)
+    def test_online_everything_delivers(self):
+        sim = self._sim(Mode.ONLINE)
         for link in Link:
             self.assertTrue(sim.transmit(link, 2000, 10).ok, link)
 
-    def test_m1_slow_and_size_sensitive(self):
-        sim = self._sim(Mode.M1_CONSTRAINED)
-        small = sim.transmit(Link.FIELD_CLOUD, 1_000, 10, deadline_ms=60_000)
-        big = sim.transmit(Link.FIELD_CLOUD, 5_000_000, 20, deadline_ms=60_000)  # 5 MB photo
-        self.assertEqual(big.reason, "timeout")
-        if small.ok:
-            self.assertGreater(small.latency_ms, 500)
-
-    def test_m2_flaps_both_ways(self):
-        sim = self._sim(Mode.M2_INTERMITTENT, seed=3)
-        states = {sim.link_up(Link.FIELD_CLOUD, t) for t in range(0, 3600, 10)}
+    def test_limited_is_slow_and_flaky(self):
+        sim = self._sim(Mode.LIMITED, seed=3)
+        states = {sim.link_up(Link.DEVICE_CLOUD, t) for t in range(0, 3600, 10)}
         self.assertEqual(states, {True, False})
-        self.assertTrue(sim.link_up(Link.FIELD_EDGE, 100))
+        self.assertTrue(sim.link_up(Link.DEVICE_EDGE, 100))
+        t_up = next(t for t in range(0, 3600, 5) if sim.link_up(Link.DEVICE_CLOUD, t))
+        big = sim.transmit(Link.DEVICE_CLOUD, 5_000_000, t_up, deadline_ms=60_000)  # 5 MB photo
+        self.assertEqual(big.reason, "timeout")
 
-    def test_m3_only_llm_down(self):
-        sim = self._sim(Mode.M3_CLOUD_AGENTS_DOWN)
-        self.assertEqual(sim.transmit(Link.CLOUD_LLM, 100, 5).reason, "link_down")
-        self.assertTrue(sim.transmit(Link.FIELD_CLOUD, 100, 5).ok)
-
-    def test_m4_hub_island(self):
-        sim = self._sim(Mode.M4_HUB_ISLAND)
+    def test_offline_only_local_link(self):
+        sim = self._sim(Mode.OFFLINE)
+        up = {link for link in Link if link is not Link.CLOUD_AI and sim.link_up(link, 5)}
+        self.assertEqual(up, {Link.DEVICE_EDGE})
         for link in WAN_LINKS:
-            self.assertFalse(sim.link_up(link, 5), link)
-        self.assertTrue(sim.link_up(Link.FIELD_HUB, 5))
+            self.assertEqual(sim.transmit(link, 100, 5).reason, "link_down")
 
-    def test_m5_only_local_link(self):
-        sim = self._sim(Mode.M5_OFFLINE)
-        up = {link for link in Link if sim.link_up(link, 5)}
-        self.assertEqual(up, {Link.FIELD_EDGE})
+    def test_cloud_ai_down_event(self):
+        sim = self._sim(Mode.ONLINE, cloud_ai_down=True)
+        self.assertEqual(sim.transmit(Link.CLOUD_AI, 100, 5).reason, "ai_down")
+        self.assertTrue(sim.transmit(Link.DEVICE_CLOUD, 100, 5).ok)
 
-    def test_m6_overlay_blocks_telemetry_only(self):
-        sim = self._sim(Mode.M0_CONNECTED, telemetry_lost=True)
-        self.assertEqual(sim.transmit(Link.FIELD_EDGE, 100, 5, telemetry=True).reason, "telemetry_lost")
-        self.assertTrue(sim.transmit(Link.FIELD_CLOUD, 100, 5).ok)
+    def test_sensors_lost_event_blocks_telemetry_only(self):
+        sim = self._sim(Mode.ONLINE, sensors_lost=True)
+        self.assertEqual(sim.transmit(Link.DEVICE_EDGE, 100, 5, telemetry=True).reason, "sensors_lost")
+        self.assertTrue(sim.transmit(Link.DEVICE_CLOUD, 100, 5).ok)
 
     def test_deterministic_for_seed(self):
         s = SCENARIOS["remote_site_visit"]
-        run = lambda: [NetworkSim(s, seed=9).transmit(Link.FIELD_CLOUD, 4000, t) for t in range(0, s.duration_s, 600)]
+        run = lambda: [NetworkSim(s, seed=9).transmit(Link.DEVICE_CLOUD, 4000, t) for t in range(0, s.duration_s, 600)]
         self.assertEqual(run(), run())
 
     def test_remote_visit_timeline(self):
         sim = NetworkSim(SCENARIOS["remote_site_visit"], seed=0)
-        self.assertEqual(sim.mode_at(0), Mode.M0_CONNECTED)
-        self.assertEqual(sim.mode_at(4 * 3600), Mode.M5_OFFLINE)
-        self.assertEqual(sim.mode_at(7.5 * 3600), Mode.M0_CONNECTED)
+        self.assertEqual(sim.mode_at(0), Mode.ONLINE)
+        self.assertEqual(sim.mode_at(4 * 3600), Mode.OFFLINE)
+        self.assertEqual(sim.mode_at(7.5 * 3600), Mode.ONLINE)
         with self.assertRaises(ValueError):
             sim.mode_at(99 * 3600)
 
     def test_psps_has_sensor_loss(self):
         sim = NetworkSim(SCENARIOS["psps_outage"])
-        self.assertTrue(sim.telemetry_lost_at(10 * 3600))
-        self.assertFalse(sim.telemetry_lost_at(1 * 3600))
+        self.assertTrue(sim.sensors_lost_at(10 * 3600))
+        self.assertFalse(sim.sensors_lost_at(1 * 3600))
 
 
 if __name__ == "__main__":

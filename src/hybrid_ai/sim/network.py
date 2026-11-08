@@ -1,10 +1,18 @@
-"""Network fault injector for the hybrid operating modes (DESIGN.md section 5).
+"""Network fault injector for the three operating modes (DESIGN.md section 5).
 
-A ``Scenario`` is a timeline of segments, each with a base mode (M0-M5) and an
-optional equipment-data-loss flag (M6 can overlap any mode). ``NetworkSim``
-answers "what happens if I send N bytes over link L at time t?" deterministically
-for a given seed, so later phases (router, outbox, agents) can be tested
-against exactly reproducible outages.
+Modes describe the technician's link:
+
+    ONLINE   cloud reachable, normal latency
+    LIMITED  slow or intermittent: one bar of LTE, satellite backup, coverage gaps
+    OFFLINE  no WAN: only the device and the site edge, over the local link
+
+Two events can happen inside any mode:
+
+    cloud_ai_down   the cloud model API fails while the network still works
+    sensors_lost    the site edge gateway / sensors stop reporting
+
+A ``Scenario`` is a timeline of segments. ``NetworkSim`` answers "what happens if
+I send N bytes over link L at time t?" deterministically for a given seed.
 """
 
 from __future__ import annotations
@@ -15,25 +23,19 @@ from enum import Enum
 
 
 class Mode(str, Enum):
-    M0_CONNECTED = "M0"
-    M1_CONSTRAINED = "M1"
-    M2_INTERMITTENT = "M2"
-    M3_CLOUD_AGENTS_DOWN = "M3"
-    M4_HUB_ISLAND = "M4"
-    M5_OFFLINE = "M5"
-    M6_EQUIPMENT_DATA_LOST = "M6"  # flag-style; see Segment.telemetry_lost
+    ONLINE = "ONLINE"
+    LIMITED = "LIMITED"
+    OFFLINE = "OFFLINE"
 
 
 class Link(str, Enum):
-    FIELD_CLOUD = "field->cloud"
-    FIELD_HUB = "field->hub"
-    HUB_CLOUD = "hub->cloud"
+    DEVICE_CLOUD = "device->cloud"
     EDGE_CLOUD = "edge->cloud"
-    FIELD_EDGE = "field->edge"  # local site Wi-Fi/BLE, never needs the WAN
-    CLOUD_LLM = "cloud->llm"    # the cloud model API itself
+    DEVICE_EDGE = "device->edge"   # local site Wi-Fi/BLE, never needs the WAN
+    CLOUD_AI = "cloud->ai"         # the cloud model API itself
 
 
-WAN_LINKS = {Link.FIELD_CLOUD, Link.HUB_CLOUD, Link.EDGE_CLOUD}
+WAN_LINKS = {Link.DEVICE_CLOUD, Link.EDGE_CLOUD}
 
 
 @dataclass(frozen=True)
@@ -41,43 +43,27 @@ class LinkProfile:
     up: bool
     bandwidth_kbps: float = 0.0
     rtt_ms: float = 0.0
-    loss: float = 0.0               # per-message loss probability
-    flap_up_s: tuple[int, int] = (0, 0)    # if set, link alternates up/down windows
+    loss: float = 0.0                         # per-message loss probability
+    flap_up_s: tuple[int, int] = (0, 0)       # if set, link alternates up/down windows
     flap_down_s: tuple[int, int] = (0, 0)
 
 
 _LOCAL = LinkProfile(True, 20_000, 15)
 _DOWN = LinkProfile(False)
-_GOOD_WAN = LinkProfile(True, 10_000, 80)
+_AI = LinkProfile(True, 100_000, 50)
 
 PROFILES: dict[Mode, dict[Link, LinkProfile]] = {
-    Mode.M0_CONNECTED: {
-        Link.FIELD_CLOUD: _GOOD_WAN, Link.FIELD_HUB: _GOOD_WAN, Link.HUB_CLOUD: LinkProfile(True, 100_000, 30),
-        Link.EDGE_CLOUD: _GOOD_WAN, Link.FIELD_EDGE: _LOCAL, Link.CLOUD_LLM: LinkProfile(True, 100_000, 50),
+    Mode.ONLINE: {
+        Link.DEVICE_CLOUD: LinkProfile(True, 10_000, 80), Link.EDGE_CLOUD: LinkProfile(True, 10_000, 80),
+        Link.DEVICE_EDGE: _LOCAL, Link.CLOUD_AI: _AI,
     },
-    Mode.M1_CONSTRAINED: {  # e.g. one bar of LTE or satellite backup
-        Link.FIELD_CLOUD: LinkProfile(True, 128, 900, 0.02), Link.FIELD_HUB: LinkProfile(True, 128, 700, 0.02),
-        Link.HUB_CLOUD: LinkProfile(True, 100_000, 30), Link.EDGE_CLOUD: LinkProfile(True, 64, 1100, 0.03),
-        Link.FIELD_EDGE: _LOCAL, Link.CLOUD_LLM: LinkProfile(True, 100_000, 50),
+    Mode.LIMITED: {  # slow AND intermittent: one bar of LTE, satellite, the edge of coverage
+        Link.DEVICE_CLOUD: LinkProfile(True, 256, 700, 0.05, (20, 180), (30, 300)),
+        Link.EDGE_CLOUD: LinkProfile(True, 128, 900, 0.08, (20, 120), (60, 600)),
+        Link.DEVICE_EDGE: _LOCAL, Link.CLOUD_AI: _AI,
     },
-    Mode.M2_INTERMITTENT: {
-        Link.FIELD_CLOUD: LinkProfile(True, 512, 400, 0.10, (20, 180), (30, 300)),
-        Link.FIELD_HUB: LinkProfile(True, 512, 300, 0.10, (20, 180), (30, 300)),
-        Link.HUB_CLOUD: LinkProfile(True, 100_000, 30),
-        Link.EDGE_CLOUD: LinkProfile(True, 256, 500, 0.15, (20, 120), (60, 600)),
-        Link.FIELD_EDGE: _LOCAL, Link.CLOUD_LLM: LinkProfile(True, 100_000, 50),
-    },
-    Mode.M3_CLOUD_AGENTS_DOWN: {  # network fine, model API failing (outage, quota, region)
-        Link.FIELD_CLOUD: _GOOD_WAN, Link.FIELD_HUB: _GOOD_WAN, Link.HUB_CLOUD: LinkProfile(True, 100_000, 30),
-        Link.EDGE_CLOUD: _GOOD_WAN, Link.FIELD_EDGE: _LOCAL, Link.CLOUD_LLM: _DOWN,
-    },
-    Mode.M4_HUB_ISLAND: {  # WAN backbone down, depot LAN/radio still up
-        Link.FIELD_CLOUD: _DOWN, Link.FIELD_HUB: LinkProfile(True, 2_000, 120, 0.02),
-        Link.HUB_CLOUD: _DOWN, Link.EDGE_CLOUD: _DOWN, Link.FIELD_EDGE: _LOCAL, Link.CLOUD_LLM: _DOWN,
-    },
-    Mode.M5_OFFLINE: {
-        Link.FIELD_CLOUD: _DOWN, Link.FIELD_HUB: _DOWN, Link.HUB_CLOUD: _DOWN,
-        Link.EDGE_CLOUD: _DOWN, Link.FIELD_EDGE: _LOCAL, Link.CLOUD_LLM: _DOWN,
+    Mode.OFFLINE: {
+        Link.DEVICE_CLOUD: _DOWN, Link.EDGE_CLOUD: _DOWN, Link.DEVICE_EDGE: _LOCAL, Link.CLOUD_AI: _AI,
     },
 }
 
@@ -86,7 +72,8 @@ PROFILES: dict[Mode, dict[Link, LinkProfile]] = {
 class Segment:
     start_s: int
     mode: Mode
-    telemetry_lost: bool = False  # M6 overlay: sensors / edge gateway not producing data
+    sensors_lost: bool = False    # event: site gateway / sensors not reporting
+    cloud_ai_down: bool = False   # event: cloud model API failing
     note: str = ""
 
 
@@ -114,9 +101,10 @@ class Scenario:
 class Delivery:
     ok: bool
     latency_ms: float
-    reason: str  # delivered | link_down | flap_down | lost | timeout | telemetry_lost
+    reason: str  # delivered | link_down | flap_down | lost | timeout | sensors_lost | ai_down
     mode: Mode
-    telemetry_lost: bool
+    sensors_lost: bool
+    cloud_ai_down: bool
 
 
 class NetworkSim:
@@ -126,15 +114,19 @@ class NetworkSim:
         self._flap_cache: dict[tuple[int, Link], list[tuple[int, int]]] = {}
         self._msg_counter = 0
 
-    # -- state queries -----------------------------------------------------
     def mode_at(self, t: float) -> Mode:
         return self.scenario.segment_at(t)[1].mode
 
-    def telemetry_lost_at(self, t: float) -> bool:
-        return self.scenario.segment_at(t)[1].telemetry_lost
+    def sensors_lost_at(self, t: float) -> bool:
+        return self.scenario.segment_at(t)[1].sensors_lost
+
+    def cloud_ai_down_at(self, t: float) -> bool:
+        return self.scenario.segment_at(t)[1].cloud_ai_down
 
     def link_up(self, link: Link, t: float) -> bool:
         idx, seg = self.scenario.segment_at(t)
+        if link is Link.CLOUD_AI and seg.cloud_ai_down:
+            return False
         prof = PROFILES[seg.mode][link]
         if not prof.up:
             return False
@@ -157,23 +149,24 @@ class NetworkSim:
             self._flap_cache[key] = windows
         return self._flap_cache[key]
 
-    # -- transmission ------------------------------------------------------
     def transmit(self, link: Link, nbytes: int, t: float, deadline_ms: float | None = None,
                  telemetry: bool = False) -> Delivery:
-        """Simulate one request/response of ``nbytes`` payload over ``link`` at time ``t``.
+        """Simulate one request/response of ``nbytes`` over ``link`` at time ``t``.
 
         ``telemetry=True`` marks a request that needs fresh equipment data; it fails
-        with ``telemetry_lost`` during an M6 overlay regardless of the link.
+        with ``sensors_lost`` during that event regardless of the link.
         """
         idx, seg = self.scenario.segment_at(t)
         prof = PROFILES[seg.mode][link]
         self._msg_counter += 1
 
         def result(ok: bool, latency: float, reason: str) -> Delivery:
-            return Delivery(ok, round(latency, 1), reason, seg.mode, seg.telemetry_lost)
+            return Delivery(ok, round(latency, 1), reason, seg.mode, seg.sensors_lost, seg.cloud_ai_down)
 
-        if telemetry and seg.telemetry_lost:
-            return result(False, 0.0, "telemetry_lost")
+        if telemetry and seg.sensors_lost:
+            return result(False, 0.0, "sensors_lost")
+        if link is Link.CLOUD_AI and seg.cloud_ai_down:
+            return result(False, 0.0, "ai_down")
         if not prof.up:
             return result(False, 0.0, "link_down")
         if not self.link_up(link, t):
@@ -189,60 +182,59 @@ class NetworkSim:
 
 
 H = 3600
+ON, LIM, OFF = Mode.ONLINE, Mode.LIMITED, Mode.OFFLINE
 
 SCENARIOS: dict[str, Scenario] = {
     s.name: s
     for s in (
-        Scenario("normal_day", "Full connectivity all shift.",
-                 (Segment(0, Mode.M0_CONNECTED),), 10 * H),
+        Scenario("normal_day", "Online all shift.", (Segment(0, ON),), 10 * H),
         Scenario(
             "remote_site_visit",
-            "Technician drives from depot into a desert dead zone and back.",
+            "Technician drives from the depot into a desert dead zone and back.",
             (
-                Segment(0, Mode.M0_CONNECTED, note="at depot, mission pack sync"),
-                Segment(1 * H, Mode.M1_CONSTRAINED, note="highway, weak LTE"),
-                Segment(2 * H, Mode.M2_INTERMITTENT, note="approach road"),
-                Segment(3 * H, Mode.M5_OFFLINE, note="on site, no coverage"),
-                Segment(6 * H, Mode.M2_INTERMITTENT, note="driving out"),
-                Segment(7 * H, Mode.M0_CONNECTED, note="back in coverage, outbox replay"),
+                Segment(0, ON, note="at depot, mission pack sync"),
+                Segment(1 * H, LIM, note="highway and approach road, weak signal"),
+                Segment(3 * H, OFF, note="on site, no coverage"),
+                Segment(6 * H, LIM, note="driving out, signal returning"),
+                Segment(7 * H, ON, note="back in coverage, outbox replay"),
             ),
             8 * H,
         ),
         Scenario(
             "psps_outage",
-            "Wildfire public-safety power shutoff: towers and site power drop, depot on generator.",
+            "Wildfire public-safety power shutoff: towers and site power drop.",
             (
-                Segment(0, Mode.M0_CONNECTED),
-                Segment(2 * H, Mode.M4_HUB_ISLAND, note="backbone down, depot on generator"),
-                Segment(4 * H, Mode.M5_OFFLINE, telemetry_lost=True, note="site power cut, gateway battery exhausted"),
-                Segment(16 * H, Mode.M4_HUB_ISLAND, note="power restoring"),
-                Segment(20 * H, Mode.M0_CONNECTED),
+                Segment(0, ON),
+                Segment(2 * H, LIM, note="towers on backup power, links degrading"),
+                Segment(4 * H, OFF, sensors_lost=True, note="site power cut, gateway battery exhausted"),
+                Segment(16 * H, LIM, note="power restoring"),
+                Segment(20 * H, ON),
             ),
             24 * H,
         ),
         Scenario(
-            "cloud_llm_outage",
+            "cloud_ai_outage",
             "Network is fine but the cloud model API is unavailable for two hours.",
             (
-                Segment(0, Mode.M0_CONNECTED),
-                Segment(1 * H, Mode.M3_CLOUD_AGENTS_DOWN),
-                Segment(3 * H, Mode.M0_CONNECTED),
+                Segment(0, ON),
+                Segment(1 * H, ON, cloud_ai_down=True, note="cloud model API failing"),
+                Segment(3 * H, ON),
             ),
             5 * H,
         ),
         Scenario(
             "satellite_backup",
             "Primary link lost; running all day on a constrained satellite backup.",
-            (Segment(0, Mode.M1_CONSTRAINED),),
+            (Segment(0, LIM),),
             10 * H,
         ),
         Scenario(
             "sensor_failure",
-            "Connectivity fine but the asset's edge gateway stops reporting.",
+            "Online, but the compressor's edge gateway stops reporting.",
             (
-                Segment(0, Mode.M0_CONNECTED),
-                Segment(1 * H, Mode.M0_CONNECTED, telemetry_lost=True, note="gateway offline"),
-                Segment(5 * H, Mode.M0_CONNECTED),
+                Segment(0, ON),
+                Segment(1 * H, ON, sensors_lost=True, note="gateway offline"),
+                Segment(5 * H, ON),
             ),
             6 * H,
         ),

@@ -1,5 +1,5 @@
 {
-  "$comment": "hybrid-ai MCP tool contracts. Same names and schemas at every tier (edge, field, hub, cloud). Every tool response is wrapped in the provenance envelope built by hybrid_ai.contracts.",
+  "$comment": "hybrid-ai MCP tool contracts. Same names and schemas at every tier (device, edge, cloud). Every tool response is wrapped in the provenance envelope built by hybrid_ai.contracts.",
   "version": "0.1.0",
   "$defs": {
     "AssetId": { "type": "string", "pattern": "^AST-[0-9]{5}$" },
@@ -7,7 +7,7 @@
     "WorkOrderId": { "type": "string", "pattern": "^WO-[0-9A-Z-]{4,}$" },
     "PartNumber": { "type": "string", "pattern": "^P-[A-Z]{3}-[0-9]{4}$" },
     "Timestamp": { "type": "string", "format": "date-time" },
-    "Tier": { "enum": ["edge", "field", "hub", "cloud"] },
+    "Tier": { "enum": ["device", "edge", "cloud"] },
     "Severity": { "enum": ["low", "medium", "high", "critical"] },
     "Urgency": { "enum": ["routine", "soon", "urgent", "emergency"] },
     "GeoPoint": {

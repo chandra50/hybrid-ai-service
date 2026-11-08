@@ -33,17 +33,13 @@ WHITE = "FFFFFF"
 ON_DARK = "C9D6DB"
 ON_DARK_MUTED = "93A7B0"
 
-MODE = {  # status colors for operating modes (fill, text)
-    "M0": ("2E8B57", WHITE), "M1": ("9BBF3B", TEXT), "M2": ("F2C230", TEXT),
-    "M3": ("7A5AA6", WHITE), "M4": ("D9732B", WHITE), "M5": ("B83227", WHITE),
-    "M6": ("5B6B73", WHITE),
+MODE = {  # operating modes (fill, text)
+    "ONLINE": ("2E8B57", WHITE), "LIMITED": ("F2C230", TEXT), "OFFLINE": ("B83227", WHITE),
 }
-MODE_NAME = {
-    "M0": "Connected", "M1": "Constrained", "M2": "Intermittent", "M3": "Cloud AI down",
-    "M4": "Hub island", "M5": "Fully offline", "M6": "Sensors lost",
-}
-TIER = {  # fill, text
-    "Cloud": (SLATE, WHITE), "Hub": (TEAL, WHITE), "Field": ("3E9E77", WHITE), "Edge": (AMBER, TEXT),
+MODE_NAME = {"ONLINE": "Online", "LIMITED": "Limited", "OFFLINE": "Offline"}
+EVENT = ("7A5AA6", WHITE)  # cloud AI outage / sensors lost
+TIER = {  # places (fill, text)
+    "Cloud": (SLATE, WHITE), "Edge": ("C98A00", WHITE), "Device": (TEAL, WHITE),
 }
 
 FONT = "Arial"
@@ -237,34 +233,37 @@ def build(out: Path) -> None:
     d = Deck()
     C = PP_ALIGN.CENTER
     MID = MSO_ANCHOR.MIDDLE
+    places = ["Device", "Edge", "Cloud"]
+
+    def place_chip(s, x, y, w, h, place, size=12, label=None):
+        fill, col = TIER[place]
+        d.chip(s, x, y, w, h, label or place, fill, col, size=size)
+
+    def mode_chip(s, x, y, w, h, m, size=12, label=None):
+        fill, col = MODE[m]
+        d.chip(s, x, y, w, h, label or MODE_NAME[m], fill, col, size=size)
 
     # 1 - Title ---------------------------------------------------------
     s = d.slide("hybrid-ai", dark=True, title_size=60, title_box=(0.8, 1.7, 7.6, 1.1),
-                notes="hybrid-ai is a design for MCP-based agents that help maintain a California "
-                      "industrial equipment fleet, built to keep working when connectivity or the cloud fails.")
-    d.text(s, 0.8, 2.95, 7.4, 1.3, "Field-service agents that keep working when the network doesn't",
-           size=28, color=ON_DARK)
-    d.text(s, 0.8, 4.6, 7.4, 0.9, ["MCP agent design for a California industrial fleet",
-                                   "Design v0.2  ·  November 2026"], size=16, color=ON_DARK_MUTED, space_after=4)
-    tiers = [("Cloud", "T3"), ("Hub", "T2"), ("Field", "T1"), ("Edge", "T0")]
-    for i, (name, code) in enumerate(tiers):
-        fill, col = TIER[name]
-        y = 1.55 + i * 1.15
-        d.box(s, 9.3, y, 3.2, 0.8, fill=fill, paras=[{"runs": [(f"{code}  ", {"bold": True}), (name, {})]}],
-              size=20, color=col, anchor=MID, align=C, radius=0.3)
-        if i < 3:
-            d.arrow(s, 10.9, y + 0.82, 10.9, y + 1.13, color=ON_DARK_MUTED, width=1.5, dash=True, both=True)
+                notes="hybrid-ai is a design for MCP-based agents that help maintain a California compressor "
+                      "fleet, built to keep working when connectivity or the cloud fails.")
+    d.text(s, 0.8, 2.95, 7.4, 1.3, "Field-service agents that keep working when the network doesn't", size=28, color=ON_DARK)
+    d.text(s, 0.8, 4.6, 7.4, 0.9, ["MCP agent design for a California compressor fleet", "Design v0.4  ·  November 2026"],
+           size=16, color=ON_DARK_MUTED, space_after=4)
+    for i, p in enumerate(["Cloud", "Edge", "Device"]):
+        fill, col = TIER[p]
+        y = 1.8 + i * 1.3
+        d.box(s, 9.3, y, 3.2, 0.85, fill=fill, paras=p, size=22, bold=True, color=col, anchor=MID, align=C, radius=0.3)
+        if i < 2:
+            d.arrow(s, 10.9, y + 0.87, 10.9, y + 1.28, color=ON_DARK_MUTED, width=1.5, dash=True, both=True)
 
     # 2 - Problem -------------------------------------------------------
-    s = d.slide("Six decisions behind every equipment issue",
-                notes="Every issue runs the same chain from W1 to W6. The constraints at the bottom are what "
-                      "make a cloud-only design fail in rural California.")
-    flows = [("W1", "Triage", "What is wrong, how bad, safe to run?"),
-             ("W2", "Technician", "Who is qualified, close and available?"),
-             ("W3", "Location", "Fix on site or pull to a workshop?"),
-             ("W4", "Parts", "Van, depot, warehouse or order? Reserve them"),
-             ("W5", "Execution", "Procedures, manuals, LOTO at the asset"),
-             ("W6", "Close-out", "Record the fix so triage gets smarter")]
+    s = d.slide("Six decisions behind every compressor issue",
+                notes="Every issue runs the same chain from W1 to W6. The constraints at the bottom are what make "
+                      "a cloud-only design fail at remote California sites.")
+    flows = [("W1", "Triage", "What is wrong, how bad, safe to run?"), ("W2", "Technician", "Who is qualified, close and available?"),
+             ("W3", "Location", "Fix on site or pull to a workshop?"), ("W4", "Parts", "Van, depot, warehouse or order? Reserve them"),
+             ("W5", "Execution", "Repair plan, manuals, LOTO at the compressor"), ("W6", "Close-out", "Record the fix so triage gets smarter")]
     cw, gap = 1.85, 0.2
     for i, (code, name, q) in enumerate(flows):
         x = MX + i * (cw + gap)
@@ -273,26 +272,23 @@ def build(out: Path) -> None:
         d.text(s, x + 0.12, 2.6, cw - 0.24, 0.4, name, size=17, bold=True, align=C)
         d.text(s, x + 0.12, 3.05, cw - 0.24, 1.1, q, size=14, color=MUTED, align=C)
     d.text(s, MX, 4.55, CW, 0.4, "What makes it hard here", size=20, bold=True)
-    cons = [("Connectivity gaps", "Valley, desert and foothill dead zones; wildfire power shutoffs (PSPS) for days"),
-            ("Heavy live data", "Vibration, pressure, PLC alarms can't all stream raw over weak links"),
-            ("Heavy knowledge", "Manuals and years of repair history are gigabytes, not on-demand fetches"),
-            ("Safety and cost", "People approve dispatch, shutdowns and parts; no acting on stale data")]
+    cons = [("Connectivity gaps", "Valley, desert and foothill dead zones; wildfire power shutoffs for days"),
+            ("Heavy live data", "Vibration, pressure and alarms can't all stream raw over weak links"),
+            ("Heavy knowledge", "Manuals and years of repair history are gigabytes"),
+            ("Safety and cost", "Rules or people approve dispatch, shutdowns and parts; no acting on stale data")]
     cw4 = (CW - 3 * 0.3) / 4
     for i, (h, b) in enumerate(cons):
-        x = MX + i * (cw4 + 0.3)
-        d.box(s, x, 5.05, cw4, 1.8, fill=WHITE, line=TINT2,
+        d.box(s, MX + i * (cw4 + 0.3), 5.05, cw4, 1.8, fill=WHITE, line=TINT2,
               paras=[{"text": h, "bold": True, "size": 16}, {"text": b, "size": 14, "color": MUTED}], space_after=4)
 
     # 3 - Design goal -----------------------------------------------------
-    s = d.slide("Design goal", dark=True, title_size=20, title_box=(0.8, 0.8, 6, 0.5),
-                notes="This is the one idea everything else hangs on.")
+    s = d.slide("Design goal", dark=True, title_size=20, title_box=(0.8, 0.8, 6, 0.5), notes="The one idea everything else hangs on.")
     s.shapes.title.text_frame.paragraphs[0].runs[0].font.color.rgb = rgb(AMBER)
-    d.text(s, 0.8, 1.45, 11.7, 1.9,
-           "Every workflow has a cloud-best answer and a local good-enough answer, behind the same interface",
+    d.text(s, 0.8, 1.45, 11.7, 1.9, "Every workflow has a cloud-best answer and a local good-enough answer, behind the same interface",
            size=32, bold=True, color=WHITE)
-    pillars = [("1", "One MCP contract at every tier", "Same tool names and schemas at edge, field, hub and cloud"),
-               ("2", "A router picks who answers", "Per call, based on the current connectivity mode and deadlines"),
-               ("3", "Every answer says how fresh it is", "Source tier, as-of time, staleness, provisional or confirmed")]
+    pillars = [("1", "One MCP contract everywhere", "Same tools and schemas in the cloud, at the edge and on the device"),
+               ("2", "Agents move to where they can run", "A router sends each request to cloud, edge or device by mode"),
+               ("3", "Every answer says where and how fresh", "Place, age, provisional or confirmed, time and tokens")]
     pw = (11.7 - 2 * 0.4) / 3
     for i, (n, h, b) in enumerate(pillars):
         x = 0.8 + i * (pw + 0.4)
@@ -300,58 +296,53 @@ def build(out: Path) -> None:
         d.text(s, x, 4.8, pw, 0.85, h, size=20, bold=True, color=WHITE)
         d.text(s, x, 5.7, pw, 1.0, b, size=16, color=ON_DARK)
 
-    # 4 - Architecture ----------------------------------------------------
-    s = d.slide("Four tiers, each able to stand alone",
-                notes="Tiers degrade independently. Each one is authoritative for something, which is what makes "
-                      "conflict handling simple later.")
-    rows = [("Cloud", "T3  Cloud", "Claude orchestrator · CMMS, ERP, full manuals and repair history, fleet analytics",
-             "Work orders, assignments, reservations, purchase orders"),
-            ("Hub", "T2  Regional depot hub", "Mid-size local model · regional mirror of manuals, history, roster, depot stock",
-             "Depot stock and workshop bays"),
-            ("Field", "T1  Technician device", "Small on-device model · mission packs, van stock, offline outbox",
-             "Van stock and on-site observations"),
-            ("Edge", "T0  Site edge gateway", "No LLM: rules and anomaly models · live telemetry, 7–30 day buffer",
-             "Live equipment state and alarms")]
-    d.text(s, 7.35, 1.45, 5.3, 0.35, "AUTHORITATIVE FOR", size=12, bold=True, color=MUTED)
-    for i, (tier, name, desc, auth) in enumerate(rows):
-        y = 1.85 + i * 1.3
-        fill, col = TIER[tier]
-        d.box(s, MX, y, 6.35, 1.05, fill=fill,
-              paras=[{"text": name, "bold": True, "size": 18}, {"text": desc, "size": 14}], color=col, anchor=MID)
-        d.text(s, 7.35, y, 5.35, 1.05, auth, size=16, anchor=MID)
-        if i < 3:
-            d.arrow(s, MX + 3.2, y + 1.07, MX + 3.2, y + 1.28, color=MUTED, width=1.5, dash=True, both=True)
+    # 4 - Three places ----------------------------------------------------
+    s = d.slide("Three places, each with its own agents and data",
+                notes="Device, edge and cloud each hold databases and can run models. The cloud is authoritative; "
+                      "the edge sits next to the compressor; the device goes everywhere the technician goes.")
+    cols = [("Device", "Technician tablet in the service van", "Small on-device model",
+             ["Mission pack DB: plan copy, manuals index, history", "Outbox: queued updates", "Van stock"]),
+            ("Edge", "Site gateway + depot edge server", "Mid-size model, safety rules",
+             ["Telemetry buffer (7–30 days)", "Safety rules", "Depot mirror: stock, roster, regional knowledge"]),
+            ("Cloud", "Authoritative", "Claude (Opus / Haiku)",
+             ["Repair recommendations DB", "Work orders + ERP", "Knowledge base", "Fleet telemetry"])]
+    pw = (CW - 2 * 0.6) / 3
+    for i, (p, sub, model, dbs) in enumerate(cols):
+        x = MX + i * (pw + 0.6)
+        fill, col = TIER[p]
+        d.box(s, x, 1.55, pw, 0.95, fill=fill, color=col, anchor=MID, paras=[{"text": p, "bold": True, "size": 20}, {"text": sub, "size": 13}])
+        d.box(s, x, 2.6, pw, 0.6, fill=TINT, paras=[{"runs": [("Models: ", {"bold": True}), (model, {})]}], size=14, anchor=MID)
+        d.text(s, x + 0.05, 3.35, pw, 0.35, "DATABASES", size=11, bold=True, color=MUTED)
+        for j, db in enumerate(dbs):
+            d.box(s, x, 3.7 + j * 0.62, pw, 0.52, fill=WHITE, line=TINT2, paras=db, size=13, anchor=MID)
+        if i < 2:
+            d.arrow(s, x + pw + 0.05, 2.02, x + pw + 0.55, 2.02, color=MUTED, width=2, both=True)
+    d.text(s, MX, 6.35, CW, 0.5, "Device ↔ Edge: local Wi-Fi/BLE, always.   Device / Edge ↔ Cloud: the WAN, which is Online, Limited or down.",
+           size=14, color=MUTED, italic=True)
 
     # 5 - Contract --------------------------------------------------------
     s = d.slide("One MCP contract, many implementations",
-                notes="Agents never know which tier answered unless they read the provenance fields, and they "
-                      "are instructed to tell the technician whenever data is provisional or stale.")
+                notes="Agents never know which place answered unless they read the provenance fields, and they "
+                      "tell the technician whenever data is provisional or stale.")
     tools = ["diagnose_issue", "find_technicians", "recommend_repair_location", "check_parts",
              "reserve_parts", "search_knowledge", "get_live_telemetry", "update_work_order"]
-    d.text(s, MX, 1.5, 6.0, 0.4, "8 tools, same JSON Schemas at every tier", size=18, bold=True)
+    d.text(s, MX, 1.5, 6.0, 0.4, "8 tools, same JSON Schemas everywhere", size=18, bold=True)
     for i, t in enumerate(tools):
-        col, row = i % 2, i // 2
-        d.box(s, MX + col * 3.05, 2.05 + row * 0.75, 2.9, 0.6, fill=TINT, paras=t, size=12, font=MONO,
-              anchor=MID, bold=True, margin=0.12)
-    d.text(s, MX, 5.15, 5.95, 1.3, "Only the data behind them changes: depth and freshness. Swapping a backend "
-           "(for example a real CMMS later) never changes the agents.", size=14, color=MUTED)
+        d.box(s, MX + (i % 2) * 3.05, 2.05 + (i // 2) * 0.75, 2.9, 0.6, fill=TINT, paras=t, size=12, font=MONO, anchor=MID, bold=True, margin=0.12)
+    d.text(s, MX, 5.15, 5.95, 1.3, "Only the data behind them changes: depth and freshness. Swapping a backend never changes the agents.",
+           size=14, color=MUTED)
     d.text(s, 7.15, 1.5, 5.55, 0.4, "Every response carries provenance", size=18, bold=True)
-    code = ['{', '  "result": { … },', '  "source_tier": "field",', '  "as_of": "2026-11-08T14:02Z",',
+    code = ['{', '  "result": { … },', '  "source_tier": "device",', '  "as_of": "2026-11-08T14:02Z",',
             '  "staleness_s": 18240,', '  "confidence": "provisional",', '  "authoritative": false', '}']
-    d.box(s, 7.15, 2.05, 5.55, 3.35, fill=INK, paras=code, font=MONO, size=15, color=ON_DARK, margin=0.3,
-          anchor=MID)
-    d.text(s, 7.15, 5.6, 5.55, 0.9, '"Roster is 5 h old, so this assignment is provisional until sync."',
-           size=15, italic=True, color=TEAL)
+    d.box(s, 7.15, 2.05, 5.55, 3.35, fill=INK, paras=code, font=MONO, size=15, color=ON_DARK, margin=0.3, anchor=MID)
+    d.text(s, 7.15, 5.6, 5.55, 0.9, '"Roster is 3 h old, so this assignment is provisional until sync."', size=15, italic=True, color=TEAL)
 
     # 6 - Router ----------------------------------------------------------
-    s = d.slide("The router decides who answers each call",
-                notes="The router is a small local service on every node. Agents connect to it as their only MCP "
-                      "endpoint, which keeps the agents simple.")
-    steps = [("Check mode", "Current mode and health of each tier"),
-             ("Try tiers in order", "Policy order per tool"),
-             ("Enforce a deadline", "For example 3 s on a slow link, then fall back"),
-             ("Queue writes", "Unreachable owner: write goes to the outbox"),
-             ("Label the answer", "Attach provenance before returning")]
+    s = d.slide("The router decides where each request runs",
+                notes="The router is a small local service on every node. It is what makes the agents move between places.")
+    steps = [("Check mode", "Online, Limited or Offline, plus events"), ("Try places in order", "Policy order per tool"),
+             ("Enforce a deadline", "3 s on a Limited link, then fall back"), ("Queue writes", "Cloud unreachable: write goes to the outbox"),
+             ("Label and log", "Place, why, age, time and tokens")]
     sw, sg = 2.06, 0.45
     for i, (h, b) in enumerate(steps):
         x = MX + i * (sw + sg)
@@ -361,344 +352,284 @@ def build(out: Path) -> None:
         if i < 4:
             d.arrow(s, x + sw / 2 + 0.45, 2.05, x + sw + sg + sw / 2 - 0.45, 2.05, color=MUTED, width=2)
     d.text(s, MX, 4.55, CW, 0.4, "Example policies", size=18, bold=True)
-    pol = [("find_technicians", ["Cloud", "Hub", "Field"]), ("get_live_telemetry", ["Edge", "Cloud"]),
-           ("reserve_parts", ["Cloud", "Hub", "Field"])]
+    pol = [("diagnose_issue", ["Cloud", "Edge", "Device"]), ("get_live_telemetry", ["Edge", "Cloud"]), ("check_parts", ["Cloud", "Edge", "Device"])]
     for i, (tool, order) in enumerate(pol):
         y = 5.1 + i * 0.6
         d.text(s, MX, y, 3.4, 0.45, tool, size=15, font=MONO, bold=True, anchor=MID)
         for j, t in enumerate(order):
             x = 4.2 + j * 1.9
-            fill, col = TIER[t]
-            d.chip(s, x, y + 0.02, 1.4, 0.42, t, fill, col, size=13)
+            place_chip(s, x, y + 0.02, 1.4, 0.42, t, size=13)
             if j < len(order) - 1:
                 d.arrow(s, x + 1.45, y + 0.23, x + 1.85, y + 0.23, color=MUTED, width=1.5)
-    d.text(s, 9.9, 5.1, 2.8, 1.6, "Writes from Hub or Field come back as soft or provisional",
-           size=14, color=MUTED, italic=True)
+    d.text(s, 9.9, 5.1, 2.8, 1.6, "Answers from the edge or device come back provisional", size=14, color=MUTED, italic=True)
 
     # 7 - Agents ----------------------------------------------------------
     s = d.slide("Specialist agents, coordinated by an orchestrator",
-                notes="Offline, the field assistant runs a reduced version of the same chain locally.")
-    agents = [("Orchestrator", ["Cloud", "Hub"], "Owns a work order end to end, plans W1–W6, asks people for approvals"),
-              ("Diagnosis", ["Cloud", "Hub", "Field"], "Telemetry, alarms, manuals and past repairs → ranked causes and a safety verdict"),
-              ("Dispatch", ["Cloud", "Hub"], "Scores technicians on skills, certifications, distance, workload and SLA"),
-              ("Logistics", ["Cloud", "Hub"], "On-site vs workshop; parts from van → depot → warehouse → vendor"),
-              ("Field assistant", ["Field"], "Procedures, LOTO checklist, live readings and findings, fully offline"),
-              ("Sync service", ["Edge", "Field", "Hub", "Cloud"], "No LLM: mission packs, outbox replay, conflict rules")]
+                notes="Chips show where each agent can run. The next section shows where they run in each mode.")
+    agents = [("Orchestrator", ["Cloud", "Device"], "Owns a work order end to end, plans W1–W6, asks for approvals"),
+              ("Diagnosis", ["Cloud", "Edge", "Device"], "Telemetry, alarms, manuals and past repairs → ranked causes and a safety verdict"),
+              ("Dispatch", ["Cloud", "Edge"], "Deterministic scoring on skills, certifications, distance, workload and SLA"),
+              ("Logistics", ["Cloud", "Edge", "Device"], "On site vs workshop; parts from van → depot → warehouse → vendor"),
+              ("Field assistant", ["Device"], "Repair plan, LOTO, live readings and findings; uses the best model it can reach"),
+              ("Safety rules + Sync", ["Edge", "Device"], "Trip rules next to the sensors; outbox replay and mission packs")]
     aw, ah, ag = (CW - 2 * 0.3) / 3, 2.4, 0.3
     for i, (name, tiers_, desc) in enumerate(agents):
-        col, row = i % 3, i // 3
-        x, y = MX + col * (aw + ag), 1.6 + row * (ah + ag)
+        x, y = MX + (i % 3) * (aw + ag), 1.6 + (i // 3) * (ah + ag)
         d.box(s, x, y, aw, ah, fill=TINT)
         d.text(s, x + 0.25, y + 0.2, aw - 0.5, 0.45, name, size=19, bold=True)
         for j, t in enumerate(tiers_):
-            fill, colr = TIER[t]
-            d.chip(s, x + 0.25 + j * 0.92, y + 0.75, 0.82, 0.32, t, fill, colr, size=11)
+            place_chip(s, x + 0.25 + j * 1.0, y + 0.75, 0.9, 0.32, t, size=11)
         d.text(s, x + 0.25, y + 1.25, aw - 0.5, 1.05, desc, size=14, color=MUTED)
 
     # 8 - End to end ------------------------------------------------------
-    s = d.slide("One work order, end to end",
-                notes="Step 5 is the human gate. Whether it is automatic or needs a person comes from the "
-                      "rule-based approvals table.")
-    ev = ["Alarm from edge", "Diagnose", "Repair location and parts", "Rank technicians",
-          "Approval", "Reserve and assign", "Mission pack to device", "Fix on site and close out"]
+    s = d.slide("One work order, end to end", notes="Step 5 is the gate: rules approve routine work; the rest goes to a person.")
+    ev = ["Alarm from edge", "Diagnose", "Repair location and parts", "Rank technicians", "Approval", "Reserve and assign",
+          "Plan into mission pack", "Repair on site and close out"]
     sx, step = MX + 0.75, (CW - 1.5) / 7
     d.line(s, sx, 2.4, sx + 7 * step, 2.4, color=TINT2, width=4)
     for i, e in enumerate(ev):
-        cx = sx + i * step
-        gate = i == 4
+        cx, gate = sx + i * step, i == 4
         d.badge(s, cx, 2.4, 0.7, str(i + 1), fill=AMBER if gate else TEAL, color=TEXT if gate else WHITE, size=18)
         d.text(s, cx - 0.68, 2.95, 1.36, 1.2, e, size=14, bold=gate, align=C)
-    d.text(s, sx + 4 * step - 0.75, 1.45, 1.5, 0.5, "HUMAN OR RULE GATE", size=11, bold=True, color=MUTED, align=C)
-    d.box(s, MX, 4.6, (CW - 0.3) / 2, 1.5, fill=TINT,
-          paras=[{"text": "Steps 1–7 move between tiers", "bold": True, "size": 17},
-                 {"text": "The router runs each step at the best reachable tier: cloud when it can, hub or "
-                          "device when it can't.", "size": 14, "color": MUTED}], space_after=6)
-    d.box(s, MX + (CW + 0.3) / 2, 4.6, (CW - 0.3) / 2, 1.5, fill=TINT,
+    d.text(s, sx + 4 * step - 0.75, 1.45, 1.5, 0.5, "RULE OR PERSON", size=11, bold=True, color=MUTED, align=C)
+    d.box(s, MX, 4.6, (CW - 0.3) / 2, 1.5, fill=TINT, space_after=6,
+          paras=[{"text": "Steps 1–7 move between places", "bold": True, "size": 17},
+                 {"text": "The router runs each step in the cloud when it can, at the edge or on the device when it can't.", "size": 14, "color": MUTED}])
+    d.box(s, MX + (CW + 0.3) / 2, 4.6, (CW - 0.3) / 2, 1.5, fill=TINT, space_after=6,
           paras=[{"text": "Step 8 always works offline", "bold": True, "size": 17},
-                 {"text": "The mission pack plus the local Wi-Fi/BLE link to the edge gateway need no WAN at all.",
-                  "size": 14, "color": MUTED}], space_after=6)
+                 {"text": "The repair plan is in the mission pack DB, and the device talks to the edge over the local link.", "size": 14, "color": MUTED}])
 
     # 9 - Section divider -------------------------------------------------
     s = d.slide("Operating in hybrid situations", dark=True, title_size=44, title_box=(0.8, 2.2, 11.5, 1.0),
-                notes="The second half of the deck covers how each workflow behaves as connectivity degrades.")
-    d.text(s, 0.8, 3.3, 11, 0.6, "Seven modes, one rule: degrade, never stop", size=24, color=ON_DARK)
+                notes="Three modes for the link, two events that can happen in any mode.")
+    d.text(s, 0.8, 3.3, 11, 0.6, "Three modes, two events, one rule: degrade, never stop", size=24, color=ON_DARK)
     for i, m in enumerate(MODE):
-        fill, col = MODE[m]
-        cx = 1.25 + i * 1.65
-        d.badge(s, cx, 5.0, 0.9, m, fill=fill, color=col, size=18)
-        d.text(s, cx - 0.8, 5.55, 1.6, 0.4, MODE_NAME[m], size=13, color=ON_DARK, align=C)
+        mode_chip(s, 0.8 + i * 2.4, 4.6, 2.1, 0.62, m, size=18)
+    for i, e in enumerate(["Cloud AI outage", "Sensors lost"]):
+        d.chip(s, 8.3 + i * 2.3, 4.6, 2.1, 0.62, e, EVENT[0], EVENT[1], size=15)
+    d.text(s, 0.8, 5.35, 7, 0.4, "MODES", size=12, bold=True, color=ON_DARK_MUTED)
+    d.text(s, 8.3, 5.35, 4.5, 0.4, "EVENTS", size=12, bold=True, color=ON_DARK_MUTED)
 
-    # 10 - Mode ladder ----------------------------------------------------
-    s = d.slide("A link monitor picks the mode",
-                notes="Every node measures cloud reachability, round-trip time, throughput and model-API health. "
-                      "Recovery uses hysteresis so the mode does not flap.")
-    main = [("M0", "Normal; full cloud reasoning"), ("M1", "Under 256 kbps or satellite: compact context"),
-            ("M2", "Repeated drops: local first, provisional writes"), ("M4", "WAN down, depot LAN up"),
-            ("M5", "Device and edge only")]
-    xs = [1.5 + i * 2.58 for i in range(5)]
-    cy = 3.75
-    for i, (m, desc) in enumerate(main):
-        fill, col = MODE[m]
-        d.badge(s, xs[i], cy, 1.1, m, fill=fill, color=col, size=22)
-        d.text(s, xs[i] - 1.15, cy + 0.7, 2.3, 0.4, MODE_NAME[m], size=16, bold=True, align=C)
-        d.text(s, xs[i] - 1.15, cy + 1.1, 2.3, 0.85, desc, size=14, color=MUTED, align=C)
-        if i < 4:
-            d.arrow(s, xs[i] + 0.62, cy, xs[i + 1] - 0.62, cy, color=MUTED, width=2, both=True)
-    m3x, m3y = 4.0, 1.95
-    fill, col = MODE["M3"]
-    d.badge(s, m3x, m3y, 0.9, "M3", fill=fill, color=col, size=18)
-    d.text(s, m3x + 0.6, m3y - 0.4, 5.0, 0.8,
-           [{"text": "Cloud AI down", "bold": True, "size": 16},
-            {"text": "Network fine, model API failing", "size": 14, "color": MUTED}], anchor=MID)
-    d.arrow(s, xs[0] + 0.4, cy - 0.45, m3x - 0.4, m3y + 0.25, color=MUTED, width=2, both=True)
-    d.text(s, 8.3, 1.55, 4.4, 1.0, "Arrows run both ways: modes recover as links return, with hysteresis",
-           size=14, italic=True, color=MUTED)
-    fill, col = MODE["M6"]
-    d.box(s, MX, 6.05, CW, 0.75, fill=None, line=MUTED, dash=True)
-    d.badge(s, MX + 0.5, 6.425, 0.55, "M6", fill=fill, color=col, size=12)
-    d.text(s, MX + 0.95, 6.05, CW - 1.1, 0.75,
-           [{"runs": [("Sensors lost: ", {"bold": True}),
-                      ("an overlay that can happen in any mode when sensors or the gateway stop reporting", {})]}],
-           size=15, anchor=MID)
+    # 10 - Modes and events ----------------------------------------------
+    s = d.slide("Three modes, two events",
+                notes="A link monitor picks the mode with hysteresis. Events are independent of the mode.")
+    md = [("ONLINE", "Cloud reachable at normal speed", "Cloud reasons and decides; edge serves live data and safety; device shows it all"),
+          ("LIMITED", "Slow or intermittent: one bar, satellite, coverage edges", "Edge model next to the data; device answers first; cloud in windows, within deadline"),
+          ("OFFLINE", "No WAN; device and edge still talk locally", "Edge model and rules plus the device and mission pack; dispatch unavailable")]
+    mw = (CW - 2 * 0.3) / 3
+    for i, (m, what, where) in enumerate(md):
+        x = MX + i * (mw + 0.3)
+        mode_chip(s, x, 1.6, mw, 0.6, m, size=18)
+        d.box(s, x, 2.35, mw, 2.25, fill=TINT, space_after=6,
+              paras=[{"text": what, "bold": True, "size": 16}, {"text": where, "size": 14, "color": MUTED}])
+        if i < 2:
+            d.arrow(s, x + mw + 0.03, 1.9, x + mw + 0.27, 1.9, color=MUTED, width=1.5, both=True)
+    ev_rows = [("Cloud AI outage", "Model API failing, network fine", "Reasoning moves to the edge model; data, dispatch and the database stay live in the cloud"),
+               ("Sensors lost", "Gateway or sensors dark, e.g. site power cut", "No live data: diagnosis moves to the device as guided inspection")]
+    for i, (e, what, eff) in enumerate(ev_rows):
+        y = 4.9 + i * 0.95
+        d.chip(s, MX, y + 0.12, 2.2, 0.5, e, EVENT[0], EVENT[1], size=13)
+        d.text(s, MX + 2.45, y, CW - 2.45, 0.8, [{"runs": [(what + ". ", {"bold": True}), (eff, {"color": MUTED})]}], size=15, anchor=MID)
 
-    # 11/12 - Matrix ------------------------------------------------------
-    modes = list(MODE)
-    mfills = [MODE[m] for m in modes]
-    mlabels = [f"{m}  {MODE_NAME[m]}" for m in modes]
-    w123 = [["Cloud model, full fleet RAG", "Live optimizer", "Learned and rule score"],
-            ["Cloud model, compact edge features", "Live optimizer, small payloads", "Same as M0"],
-            ["Local first, cloud second opinion", "Cloud within deadline, else hub snapshot", "Rule score locally"],
-            ["Hub or field model over live cloud data", "Deterministic optimizer, no LLM", "Rule score"],
-            ["Hub model and regional knowledge", "Hub snapshot and rules (provisional)", "Rule score"],
-            ["Edge rules, device model, mission pack", "Self, or call the dispatcher", "Rule score; technician decides"],
-            ["Guided inspection and history", "Unchanged", "Inspect on site first"]]
-    w456 = [["Live ERP, hard reservation", "Mission pack and cloud knowledge", "Real-time sync"],
-            ["Live ERP", "Mission pack only", "Text now, media later"],
-            ["Soft reservation, confirmed on sync", "Fully local", "Outbox, replayed on reconnect"],
-            ["Live ERP (data still up)", "Fully local", "Real-time sync"],
-            ["Depot live, others from snapshot", "Fully local", "Queued at the hub"],
-            ["Van stock only", "Fully local", "Outbox on the device"],
-            ["Unchanged", "Manual readings on device", "Sensor fault gets its own WO"]]
-    for title, heads, body, note in (
-        ("Each mode, workflows W1–W3", ["Mode", "W1  Diagnosis", "W2  Technician", "W3  Repair location"], w123,
-         "Diagnosis and dispatch degrade gracefully: from cloud reasoning, to hub or device models, to fixed rules."),
-        ("Each mode, workflows W4–W6", ["Mode", "W4  Parts", "W5  Execution", "W6  Close-out"], w456,
-         "Execution never needs the network. Parts and close-out switch from live to queued and confirmed later."),
-    ):
-        s = d.slide(title, notes=note)
-        rows_ = [heads] + [[mlabels[i]] + body[i] for i in range(7)]
-        d.table(s, MX, 1.55, [2.6, 3.17, 3.17, 3.16], rows_, row_h=0.66, first_col_fills=mfills, size=14)
-        d.text(s, MX, 6.95, CW, 0.35, note, size=12, color=MUTED, italic=True)
+    # 11 - Where agents run per mode ---------------------------------------
+    s = d.slide("Where each agent runs, mode by mode",
+                notes="This is what the dashboard's 'Where agents run' view animates: the same agents move between "
+                      "places as the link changes.")
+    rows = [("Orchestrator", ["Cloud", "Cloud", "Device"], ""),
+            ("Diagnosis", ["Cloud", "Edge", "Edge"], "→ Edge on cloud AI outage · → Device when sensors lost"),
+            ("Dispatch", ["Cloud", "Edge", None], "Offline: call the dispatcher"),
+            ("Logistics (parts)", ["Cloud", "Edge", "Device"], "Live ERP → depot mirror → van stock"),
+            ("Assistant model", ["Cloud", "Edge", "Edge"], "→ Device when the edge is dark"),
+            ("Repair plan", ["Cloud", "Device", "Device"], "Cloud DB → mission pack DB copy"),
+            ("Step updates", ["Cloud", "Device", "Device"], "Queued in the outbox, replayed once")]
+    hx, colw = MX + 2.75, 1.75
+    for j, m in enumerate(MODE):
+        mode_chip(s, hx + j * (colw + 0.15), 1.5, colw, 0.45, m, size=14)
+    d.text(s, hx + 3 * (colw + 0.15) + 0.1, 1.5, 3.2, 0.45, "NOTES", size=11, bold=True, color=MUTED, anchor=MID)
+    for i, (agent, where, note) in enumerate(rows):
+        y = 2.15 + i * 0.66
+        d.text(s, MX, y, 2.65, 0.5, agent, size=15, bold=True, anchor=MID)
+        for j, p in enumerate(where):
+            x = hx + j * (colw + 0.15)
+            if p:
+                place_chip(s, x + 0.15, y + 0.06, colw - 0.3, 0.4, p, size=12)
+            else:
+                d.chip(s, x + 0.15, y + 0.06, colw - 0.3, 0.4, "unavailable", TINT2, MUTED, size=11, bold=False)
+        d.text(s, hx + 3 * (colw + 0.15) + 0.1, y, 3.3, 0.55, note, size=12, color=MUTED, anchor=MID)
 
-    # 13 - Scenario: remote site ------------------------------------------
-    def timeline(s, y, hours, segs, label_h=1.6, tick_every=1, labels=True, h=0.6):
+    # 12 - Mode x workflow -----------------------------------------------
+    s = d.slide("Each mode, each workflow", notes="What every workflow does in each mode, with the place that answers.")
+    tbl = [["Workflow", "Online", "Limited", "Offline"],
+           ["W1 Diagnosis", "Cloud model, full fleet history", "Edge model on local telemetry", "Edge model + rules (device if sensors lost)"],
+           ["W2 Technician", "Live optimizer", "Cloud within deadline, else edge snapshot", "Unavailable: call the dispatcher"],
+           ["W3 Location", "Learned + rule score", "Rule score", "Rule score; technician decides"],
+           ["W4 Parts", "Live ERP, hard reservation", "Depot mirror, soft reservation", "Van stock only"],
+           ["W5 Execution", "Repair plan from the cloud DB", "Plan from the mission pack", "Plan from the mission pack"],
+           ["W6 Close-out", "Real-time sync", "Text in windows, media later", "Outbox on the device"]]
+    gt = d.table(s, MX, 1.55, [2.3, 3.27, 3.27, 3.26], tbl, row_h=0.68, size=14)
+    for j, m in enumerate(MODE):
+        cell = gt.table.cell(0, j + 1)
+        cell.fill.solid()
+        cell.fill.fore_color.rgb = rgb(MODE[m][0])
+        for r in cell.text_frame.paragraphs[0].runs:
+            r.font.color.rgb = rgb(MODE[m][1])
+
+    # 13 - Remote site scenario --------------------------------------------
+    def timeline(s, y, hours, segs, tick_every=1, h=0.6, labels=True, label_h=2.0):
         scale = CW / hours
         for i in range(0, hours + 1, tick_every):
             d.text(s, MX + i * scale - 0.4, y - 0.38, 0.8, 0.3, f"{i}h", size=11, color=MUTED, align=C)
         for (a, b, m, note, extra) in segs:
-            fill, col = MODE[m]
+            fill, col = (EVENT if m == "EVENT" else MODE[m])
             x, w = MX + a * scale, (b - a) * scale
-            d.box(s, x + 0.02, y, w - 0.04, h, fill=fill, paras=f"{m}{extra}", size=14, bold=True, color=col,
+            d.box(s, x + 0.02, y, w - 0.04, h, fill=fill, paras=f"{MODE_NAME.get(m, '')}{extra}", size=14, bold=True, color=col,
                   align=C, anchor=MID, radius=0.15, margin=0.02)
             if labels and note:
-                d.text(s, x + 0.05, y + h + 0.15, w - 0.1, label_h, note, size=14, color=TEXT)
+                d.text(s, x + 0.05, y + h + 0.15, w - 0.1, label_h, note, size=14)
 
     s = d.slide("Scenario: a remote desert site visit",
-                notes="This timeline is the remote_site_visit scenario in the network simulator, so the "
-                      "same day can be replayed in tests.")
+                notes="The remote_site_visit scenario in the simulator, and the walkthrough persona in the dashboard.")
     timeline(s, 1.95, 8, [
-        (0, 1, "M0", "At depot: mission and territory packs synced", ""),
-        (1, 2, "M1", "Highway: WO updates only, media deferred", ""),
-        (2, 3, "M2", "Approach: last check-in, assignment provisional", ""),
-        (3, 6, "M5", "On site, no coverage: diagnosis from edge rules and the device model, van stock, LOTO "
-                     "checklist; findings and photos go to the outbox", ""),
-        (6, 7, "M2", "Driving out: outbox sends P0–P1 first", ""),
-        (7, 8, "M0", "In coverage: replay, reservations confirmed, photos upload", ""),
-    ], label_h=2.4)
-    d.box(s, MX, 4.75, CW, 1.0, fill=TINT, anchor=MID,
-          paras=[{"runs": [("Outcome: ", {"bold": True}),
-                           ("the repair is completed with no data loss, and the cloud learns about it within minutes "
-                            "of reconnecting.", {})]}], size=16)
+        (0, 1, "ONLINE", "Depot: plan and mission pack copied to the device DB", ""),
+        (1, 3, "LIMITED", "Highway and approach: edge model answers; cloud only in windows", ""),
+        (3, 6, "OFFLINE", "On site, no coverage: edge model next to the compressor, plan from the mission pack, lockout and repair steps queued in the outbox", ""),
+        (6, 7, "LIMITED", "Driving out: P0–P1 replay to the cloud DB", ""),
+        (7, 8, "ONLINE", "Online: photo uploads, job complete", ""),
+    ], label_h=2.0)
+    d.box(s, MX, 4.75, CW, 1.0, fill=TINT, anchor=MID, size=16,
+          paras=[{"runs": [("Outcome: ", {"bold": True}), ("the repair is done with no data loss; the cloud repair DB shows every step once the link returns.", {})]}])
 
-    # 14 - Scenarios: PSPS + LLM outage -----------------------------------
+    # 14 - PSPS + AI outage --------------------------------------------------
     s = d.slide("Scenarios: wildfire shutoff and cloud AI outage",
-                notes="psps_outage and cloud_llm_outage are both simulator scenarios. In the LLM outage, data "
-                      "APIs stay up, so only reasoning moves down a tier.")
+                notes="psps_outage and cloud_ai_outage are simulator scenarios.")
     d.text(s, MX, 1.45, CW, 0.4, "Public-safety power shutoff (24 h)", size=18, bold=True)
-    timeline(s, 2.3, 24, [(0, 2, "M0", "", ""), (2, 4, "M4", "", ""), (4, 16, "M5", "", " + M6  site power and sensors out"),
-                          (16, 20, "M4", "", ""), (20, 24, "M0", "", "")], tick_every=4, labels=False, h=0.55)
-    cols3 = [("Depot on generator", "The hub dispatches from its roster snapshot; depot stock stays live"),
-             ("Site dark", "Guided inspection instead of telemetry; van stock only; everything queued"),
-             ("Recovery", "The hub replays its queue to the cloud; ownership rules settle conflicts")]
+    timeline(s, 2.3, 24, [(0, 2, "ONLINE", "", ""), (2, 4, "LIMITED", "", ""), (4, 16, "OFFLINE", "", " + sensors lost: site power out"),
+                          (16, 20, "LIMITED", "", ""), (20, 24, "ONLINE", "", "")], tick_every=4, labels=False, h=0.55)
+    cols3 = [("Towers on backup", "Links degrade; diagnosis already at the edge"),
+             ("Site dark", "Edge gone too: device model, guided inspection, van stock; everything queued"),
+             ("Recovery", "Outbox replays to the cloud; ownership rules settle conflicts")]
     c3w = (CW - 2 * 0.3) / 3
     for i, (h, b) in enumerate(cols3):
-        d.text(s, MX + i * (c3w + 0.3), 3.0, c3w, 1.1,
-               [{"text": h, "bold": True, "size": 15}, {"text": b, "size": 14, "color": MUTED}], space_after=2)
-    d.text(s, MX, 4.4, CW, 0.4, "Cloud model API outage (5 h)", size=18, bold=True)
-    timeline(s, 5.25, 5, [(0, 1, "M0", "", ""), (1, 3, "M3", "", "  cloud AI down"), (3, 5, "M0", "", "")],
-             labels=False, h=0.55)
-    d.text(s, MX, 5.95, CW, 0.9,
-           [{"runs": [("Data APIs stay up: ", {"bold": True}),
-                      ("hub and device models reason over live CMMS, ERP and roster data. The dispatch optimizer is "
-                       "deterministic, so it needs no LLM.", {"color": MUTED})]}], size=14)
+        d.text(s, MX + i * (c3w + 0.3), 3.0, c3w, 1.1, [{"text": h, "bold": True, "size": 15}, {"text": b, "size": 14, "color": MUTED}], space_after=2)
+    d.text(s, MX, 4.4, CW, 0.4, "Cloud AI outage (5 h)", size=18, bold=True)
+    timeline(s, 5.25, 5, [(0, 1, "ONLINE", "", ""), (1, 3, "EVENT", "", "Online + cloud AI outage"), (3, 5, "ONLINE", "", "")], labels=False, h=0.55)
+    d.text(s, MX, 5.95, CW, 0.9, [{"runs": [("Data stays live: ", {"bold": True}),
+           ("reasoning moves to the edge model while the cloud database, ERP and dispatch keep working.", {"color": MUTED})]}], size=14)
 
     # 15 - Floor ----------------------------------------------------------
-    s = d.slide("The floor: what always works at the asset",
-                notes="This is the guaranteed minimum capability, even in M5 plus M6.")
-    d.text(s, MX, 1.5, CW, 0.5, "Even with no network and no sensors (M5 + M6), a technician at the asset can still:",
-           size=18, color=MUTED)
-    floor = [("Open the asset's knowledge", "Manuals, procedures, LOTO checklist and past fixes, from the mission pack"),
-             ("Get guided diagnosis", "The on-device model reasons over that pack and the technician's observations"),
+    s = d.slide("The floor: what always works at the compressor", notes="The guaranteed minimum, even Offline with sensors lost.")
+    d.text(s, MX, 1.5, CW, 0.5, "Even Offline with sensors lost, a technician at the compressor can still:", size=18, color=MUTED)
+    floor = [("Open the repair plan", "Steps, manuals, LOTO and past fixes from the mission pack DB"),
+             ("Get guided diagnosis", "The device model ranks causes from what the technician observes"),
              ("Use van stock", "See what's in the van and record parts as they're used"),
-             ("Record everything", "Findings, parts used and photos, synced later with no data loss")]
+             ("Record everything", "Steps, findings and photos queue in the outbox; nothing is lost")]
     fw, fg = (CW - 0.3) / 2, 0.3
     for i, (h, b) in enumerate(floor):
-        col, row = i % 2, i // 2
-        x, y = MX + col * (fw + fg), 2.3 + row * 2.2
+        x, y = MX + (i % 2) * (fw + fg), 2.3 + (i // 2) * 2.2
         d.box(s, x, y, fw, 1.95, fill=TINT)
         d.badge(s, x + 0.65, y + 0.975, 0.85, str(i + 1), fill=AMBER, size=22)
-        d.text(s, x + 1.35, y + 0.25, fw - 1.6, 1.5,
-               [{"text": h, "bold": True, "size": 19}, {"text": b, "size": 15, "color": MUTED}],
-               anchor=MID, space_after=4)
+        d.text(s, x + 1.35, y + 0.25, fw - 1.6, 1.5, [{"text": h, "bold": True, "size": 19}, {"text": b, "size": 15, "color": MUTED}], anchor=MID, space_after=4)
 
     # 16 - Data and bandwidth ---------------------------------------------
-    s = d.slide("Moving data over thin links",
-                notes="Mission packs are the most important offline mechanism. Priority classes decide what "
-                      "uses scarce bandwidth first.")
+    s = d.slide("Moving data over thin links", notes="Mission packs are the key offline mechanism; priority classes decide what goes first.")
     d.box(s, MX, 1.55, 5.2, 5.25, fill=TINT)
-    d.text(s, MX + 0.3, 1.75, 4.6, 0.45, "Mission packs", size=19, bold=True)
-    d.text(s, MX + 0.3, 2.25, 4.6, 0.6, "Pre-staged to the device on assignment, plus nightly territory packs",
-           size=14, color=MUTED)
-    d.text(s, MX + 0.3, 2.95, 4.6, 2.6,
-           ["Manual sections and a local search index", "Last repairs on this asset and similar fixes",
-            "Likely parts for the top diagnoses", "Recent telemetry summary and alarms",
-            "Site access notes and hazards"], size=15, bullet=True, space_after=6)
-    d.text(s, MX + 0.3, 5.65, 4.6, 1.0,
-           [{"runs": [("At the edge: ", {"bold": True}),
-                      ("send features and alarms, not raw waveforms.", {"color": MUTED})]}], size=14)
+    d.text(s, MX + 0.3, 1.75, 4.6, 0.45, "Mission pack DB", size=19, bold=True)
+    d.text(s, MX + 0.3, 2.25, 4.6, 0.6, "Copied to the device on assignment, and nightly on depot Wi-Fi", size=14, color=MUTED)
+    d.text(s, MX + 0.3, 2.95, 4.6, 2.6, ["The repair plan from the cloud DB", "Manual sections and a local search index",
+                                         "Past and similar repairs", "Likely parts", "Site access notes and hazards"], size=15, bullet=True, space_after=6)
+    d.text(s, MX + 0.3, 5.65, 4.6, 1.0, [{"runs": [("At the edge: ", {"bold": True}), ("send features and alarms, not raw waveforms.", {"color": MUTED})]}], size=14)
     d.text(s, 6.2, 1.55, 6.5, 0.45, "Traffic priority classes", size=19, bold=True)
-    pcls = [("P0", "Safety", "Trip alarms, LOTO confirmations", "All modes, any link", "B83227", WHITE),
-            ("P1", "Control", "Assignments, reservations, status", "M0–M2", "D9732B", WHITE),
-            ("P2", "Context", "Diagnosis, telemetry features", "M0–M2, compact", "F2C230", TEXT),
-            ("P3", "Knowledge", "Mission-pack deltas, history", "M0, M1 off-peak", "1B8A8F", WHITE),
-            ("P4", "Bulk", "Photos, video, raw waveforms", "M0 only, depot Wi-Fi", "5B6B73", WHITE)]
+    pcls = [("P0", "Safety", "Trip alarms, LOTO confirmations", "Online, Limited (first)", "B83227", WHITE),
+            ("P1", "Control", "Assignments, step updates", "Online, Limited", "D9732B", WHITE),
+            ("P2", "Context", "Diagnosis, telemetry features", "Online, Limited", "F2C230", TEXT),
+            ("P3", "Knowledge", "Mission-pack updates", "Online", TEAL, WHITE),
+            ("P4", "Bulk", "Photos, video, raw waveforms", "Online (depot Wi-Fi)", MUTED, WHITE)]
     for i, (p, n, ex, allowed, fill, col) in enumerate(pcls):
         y = 2.15 + i * 0.93
         d.badge(s, 6.6, y + 0.4, 0.7, p, fill=fill, color=col, size=15)
-        d.text(s, 7.1, y, 3.4, 0.85, [{"text": n, "bold": True, "size": 16}, {"text": ex, "size": 14, "color": MUTED}],
-               anchor=MID)
+        d.text(s, 7.1, y, 3.4, 0.85, [{"text": n, "bold": True, "size": 16}, {"text": ex, "size": 14, "color": MUTED}], anchor=MID)
         d.text(s, 10.65, y, 2.05, 0.85, allowed, size=14, bold=True, anchor=MID)
 
     # 17 - Sync -----------------------------------------------------------
-    s = d.slide("Sync without conflicts: every record has an owner",
-                notes="Ownership rules instead of generic merges. Offline decisions are always proposals.")
-    owners = [("Cloud", "Assignments, reservations, purchase orders"), ("Edge", "Telemetry and alarms"),
-              ("Field", "On-site observations, parts used from the van")]
+    s = d.slide("Sync without conflicts: every record has an owner", notes="Ownership rules instead of generic merges.")
+    owners = [("Cloud", "Assignments, reservations, repair plans"), ("Edge", "Telemetry and alarms"), ("Device", "On-site observations, parts used from the van")]
     ow = (CW - 2 * 0.3) / 3
     for i, (t, b) in enumerate(owners):
         fill, col = TIER[t]
-        x = MX + i * (ow + 0.3)
-        d.box(s, x, 1.6, ow, 1.55, fill=fill, color=col, anchor=MID,
-              paras=[{"text": f"{'Device' if t == 'Field' else t} owns", "bold": True, "size": 18},
-                     {"text": b, "size": 15}], space_after=4)
-    flow = ["Offline decision", "Stored as provisional proposal", "Sync on reconnect",
-            "Cloud confirms or counter-proposes", "Technician notified"]
+        d.box(s, MX + i * (ow + 0.3), 1.6, ow, 1.55, fill=fill, color=col, anchor=MID, space_after=4,
+              paras=[{"text": f"{t} owns", "bold": True, "size": 18}, {"text": b, "size": 15}])
+    flow = ["Offline step done", "Stored as provisional", "Link returns", "Cloud DB applies once", "Supervisor sees it"]
     fx, fs = MX + 0.9, (CW - 1.8) / 4
     d.line(s, fx, 4.0, fx + 4 * fs, 4.0, color=TINT2, width=4)
     for i, f in enumerate(flow):
         cx = fx + i * fs
         d.badge(s, cx, 4.0, 0.6, str(i + 1), fill=TEAL, color=WHITE, size=16)
         d.text(s, cx - 1.05, 4.45, 2.1, 0.8, f, size=14, align=C)
-    rules = [("Idempotency keys", "Replaying the outbox never applies a write twice"),
-             ("Append-only data", "Findings, readings and photos never conflict"),
+    rules = [("Idempotency keys", "Replaying the outbox never applies a write twice"), ("Append-only data", "Findings, readings and photos never conflict"),
              ("Parts collision", "The earlier, higher-priority WO wins; the other gets an alternative source")]
     for i, (h, b) in enumerate(rules):
-        x = MX + i * (ow + 0.3)
-        d.box(s, x, 5.45, ow, 1.35, fill=TINT, paras=[{"text": h, "bold": True, "size": 16},
-                                                      {"text": b, "size": 14, "color": MUTED}], space_after=3)
+        d.box(s, MX + i * (ow + 0.3), 5.45, ow, 1.35, fill=TINT, space_after=3, paras=[{"text": h, "bold": True, "size": 16}, {"text": b, "size": 14, "color": MUTED}])
 
     # 18 - Safety and approvals -------------------------------------------
-    s = d.slide("Safety and rule-based approvals",
-                notes="The approvals file is evaluated by deterministic code, not an LLM, so it behaves "
-                      "the same at every tier, offline included.")
+    s = d.slide("Safety and rule-based approvals", notes="The same deterministic rules run everywhere, offline included.")
     safety = [("Edge safety wins", "An 'unsafe to run' rule at the edge can't be overridden by any agent"),
-              ("Read-only to equipment", "No control tools; setpoint changes stay with SCADA and PLC safety"),
-              ("Staleness guardrails", "Old data is never shown as live; every decision is audit-logged")]
+              ("Read-only to equipment", "No control tools; setpoints stay with the controller's safety layer"),
+              ("Staleness guardrails", "Old data is never shown as live; every request is logged")]
     for i, (h, b) in enumerate(safety):
-        y = 1.6 + i * 1.75
-        d.box(s, MX, y, 4.3, 1.55, fill=TINT, paras=[{"text": h, "bold": True, "size": 17},
-                                                     {"text": b, "size": 14, "color": MUTED}], space_after=4)
-    appr = [["Action", "Condition", "Outcome"],
-            ["Shutdown", "Edge safety rule fired", "Auto, planner notified"],
-            ["Shutdown", "Any other case", "Site operator"],
-            ["Dispatch", "Routine or soon, skills matched, on shift", "Auto"],
-            ["Dispatch", "Urgent, missing skills or overtime", "Planner"],
-            ["Parts", "Van or depot stock, under $1,000", "Auto"],
-            ["Parts", "$1,000 or more, or vendor order", "Regional manager"],
-            ["Workshop", "Any transfer to a workshop", "Planner"],
+        d.box(s, MX, 1.6 + i * 1.75, 4.3, 1.55, fill=TINT, space_after=4, paras=[{"text": h, "bold": True, "size": 17}, {"text": b, "size": 14, "color": MUTED}])
+    appr = [["Action", "Condition", "Outcome"], ["Shutdown", "Edge safety rule fired", "Auto, supervisor notified"],
+            ["Shutdown", "Any other case", "Site operator"], ["Dispatch", "Routine or soon, skills matched, on shift", "Auto"],
+            ["Dispatch", "Urgent, missing skills or overtime", "Supervisor"], ["Parts", "Van or depot stock, under $1,000", "Auto"],
+            ["Parts", "$1,000 or more, or vendor order", "Regional manager"], ["Workshop", "Any transfer to a workshop", "Supervisor"],
             ["Offline", "Would otherwise be auto", "Auto, provisional"]]
     d.table(s, 5.2, 1.6, [1.5, 4.0, 2.03], appr, row_h=0.575, size=14)
 
     # 19 - Demo decisions -------------------------------------------------
-    s = d.slide("Demo scope: decisions made",
-                notes="These answer the open questions from the design document, section 11.")
-    dec = [("Systems of record", "Our own MCP servers", "No commercial CMMS/ERP adapters; JSON or SQLite backends"),
-           ("Equipment data", "Replayed from files", "Per-asset JSONL telemetry stands in for OPC-UA or Modbus"),
-           ("Scale", "Under 50 of each", "6 depots, 12 sites, about 30 assets, 12 technicians"),
-           ("Depot network", "Yes, hubs in scope", "Every depot runs a T2 hub; mode M4 is first-class"),
-           ("Approvals", "Rule-based", "A declarative rules file, evaluated the same at every tier"),
-           ("Data limits", "None", "Only bandwidth classes limit what goes to the cloud")]
+    s = d.slide("Demo scope: decisions made", notes="These answer the open questions from the design document, section 11.")
+    dec = [("Equipment", "Compressors only", "Screw, reciprocating, centrifugal, diesel and scroll"),
+           ("Operating modes", "Online, Limited, Offline", "Cloud AI outage and sensors lost are events"),
+           ("Places", "Cloud, Edge, Device", "Depot servers are part of the Edge"),
+           ("Repair plans", "In a database", "Cloud DB, copied into the mission pack"),
+           ("Approvals", "Rule-based", "Same rules everywhere, offline included"),
+           ("Scale", "Under 50 of each", "30 compressors, 12 sites, 12 technicians")]
     tw, th = (CW - 2 * 0.3) / 3, 2.4
     for i, (q, a, e) in enumerate(dec):
-        col, row = i % 3, i // 3
-        x, y = MX + col * (tw + 0.3), 1.6 + row * (th + 0.3)
+        x, y = MX + (i % 3) * (tw + 0.3), 1.6 + (i // 3) * (th + 0.3)
         d.box(s, x, y, tw, th, fill=TINT)
         d.text(s, x + 0.25, y + 0.2, tw - 0.5, 0.35, q.upper(), size=12, bold=True, color=TEAL)
         d.text(s, x + 0.25, y + 0.6, tw - 0.5, 0.5, a, size=20, bold=True)
         d.text(s, x + 0.25, y + 1.2, tw - 0.5, 1.1, e, size=14, color=MUTED)
 
     # 20 - Roadmap --------------------------------------------------------
-    s = d.slide("Roadmap and how we'll measure it",
-                notes="Phase 1 is done: contracts plus fleet, telemetry and network simulators, with 47 tests passing.")
-    phases = ["Contracts and simulator", "Cloud MVP (M0)", "Field tier and mission packs", "Router and modes",
-              "Edge integration", "Hub tier", "Pilot, then scale"]
-    px, ps = MX + 0.8, (CW - 1.6) / 6
-    d.line(s, px, 2.3, px + 6 * ps, 2.3, color=TINT2, width=4)
+    s = d.slide("Roadmap and how we'll measure it", notes="Phase 1 is done; the demo dashboard shows the target behavior.")
+    phases = ["Contracts and simulator", "Cloud MVP (Online)", "Device and mission packs", "Router and modes", "Edge pilot site", "Pilot, then scale"]
+    px, ps = MX + 0.8, (CW - 1.6) / 5
+    d.line(s, px, 2.3, px + 5 * ps, 2.3, color=TINT2, width=4)
     for i, ph in enumerate(phases):
         cx = px + i * ps
-        if i == 0:
-            fill, col, tag = MODE["M0"][0], WHITE, "DONE"
-        elif i == 1:
-            fill, col, tag = AMBER, TEXT, "NEXT"
-        else:
-            fill, col, tag = TINT2, TEXT, ""
+        fill, col, tag = (MODE["ONLINE"][0], WHITE, "DONE") if i == 0 else (AMBER, TEXT, "NEXT") if i == 1 else (TINT2, TEXT, "")
         d.badge(s, cx, 2.3, 0.75, str(i + 1), fill=fill, color=col, size=18)
         if tag:
-            d.text(s, cx - 0.8, 1.45, 1.6, 0.35, tag, size=12, bold=True, align=C,
-                   color=MODE["M0"][0] if i == 0 else "9A6B00")
-        d.text(s, cx - 0.8, 2.85, 1.6, 1.0, ph, size=14, align=C, bold=i < 2)
+            d.text(s, cx - 0.8, 1.45, 1.6, 0.35, tag, size=12, bold=True, align=C, color=MODE["ONLINE"][0] if i == 0 else "9A6B00")
+        d.text(s, cx - 0.9, 2.85, 1.8, 1.0, ph, size=14, align=C, bold=i < 2)
     d.text(s, MX, 4.45, CW, 0.4, "Success metrics", size=18, bold=True)
-    mets = ["Mean time to diagnose", "First-time fix rate", "Drive time per work order",
-            "Parts-not-available rate", "WOs done in degraded modes with no data loss"]
+    mets = ["Time to diagnose", "First-time fix rate", "Drive time per work order", "Parts-not-available rate", "Jobs done in Limited/Offline with no data loss"]
     mw = (CW - 4 * 0.25) / 5
     for i, m in enumerate(mets):
         d.box(s, MX + i * (mw + 0.25), 5.0, mw, 1.7, fill=TINT, paras=m, size=15, bold=True, anchor=MID, align=C)
 
     # 21 - Close ----------------------------------------------------------
-    s = d.slide("Phase 1 is already running", dark=True, title_size=40, title_box=(0.8, 0.8, 11.5, 0.9),
-                notes="Close with what exists today and the next step.")
-    stats = [("8", "MCP tool contracts"), ("7", "operating modes simulated"), ("6", "network scenarios"),
-             ("47", "tests passing")]
+    s = d.slide("What's running today", dark=True, title_size=40, title_box=(0.8, 0.8, 11.5, 0.9), notes="Close with what exists and the next step.")
+    stats = [("3", "places agents move between"), ("3", "modes, plus 2 events"), ("8", "MCP tool contracts"), ("65", "tests passing")]
     sw4 = 11.7 / 4
     for i, (n, l) in enumerate(stats):
         x = 0.8 + i * sw4
         d.text(s, x, 2.0, sw4 - 0.3, 1.3, n, size=66, bold=True, color=AMBER)
         d.text(s, x, 3.3, sw4 - 0.3, 0.8, l, size=18, color=ON_DARK)
-    d.text(s, 0.8, 4.6, 11.7, 0.5, "Next: phase 2, the cloud MVP", size=24, bold=True, color=WHITE)
-    d.text(s, 0.8, 5.2, 11.7, 1.5,
-           ["Our own MCP servers, seeded from the simulated fleet",
-            "Orchestrator and specialist agents running W1–W4 end to end, with rule-based approvals",
-            "Then phase 3: field tier, mission packs and the offline outbox"],
+    d.text(s, 0.8, 4.6, 11.7, 0.5, "Next: the cloud MVP", size=24, bold=True, color=WHITE)
+    d.text(s, 0.8, 5.2, 11.7, 1.5, ["Real MCP servers and agents on the same tools and repair recommendations DB",
+                                    "Rule-based approvals, then the device tier with mission packs and the outbox",
+                                    "Dashboard: supervisor, technician and walkthrough views with the live agent map"],
            size=16, color=ON_DARK, bullet=True, space_after=6)
 
     d.save(out)

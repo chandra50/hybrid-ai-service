@@ -30,7 +30,7 @@ __all__ = [
     "validate_response",
 ]
 
-TIERS = ("edge", "field", "hub", "cloud")
+TIERS = ("device", "edge", "cloud")
 _PROVENANCE_KEYS = ("source_tier", "as_of", "staleness_s", "confidence", "authoritative")
 
 

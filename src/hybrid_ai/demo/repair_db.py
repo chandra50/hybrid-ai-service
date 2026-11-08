@@ -91,7 +91,7 @@ CREATE TABLE IF NOT EXISTS step_events (
     at              TEXT NOT NULL,
     by              TEXT NOT NULL,
     note            TEXT,
-    origin_tier     TEXT NOT NULL,                  -- where the update was made (field = offline)
+    origin_tier     TEXT NOT NULL,                  -- where the update was made (device = offline)
     received_at     TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS repair_outcomes (
@@ -221,7 +221,7 @@ def get_plan(conn: sqlite3.Connection, work_order_id: str) -> dict[str, Any] | N
 
 def update_step(conn: sqlite3.Connection, work_order_id: str, seq: int, status: str, by: str,
                 idempotency_key: str, at: str | None = None, note: str | None = None,
-                origin_tier: str = "field") -> dict[str, Any]:
+                origin_tier: str = "device") -> dict[str, Any]:
     """Apply a step update once. Replaying the same idempotency key is a no-op."""
     if status not in STEP_STATUSES:
         raise ValueError(f"status must be one of {sorted(STEP_STATUSES)}")

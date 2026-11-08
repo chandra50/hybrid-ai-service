@@ -74,7 +74,7 @@ class Envelope(unittest.TestCase):
         c.validate_response("diagnose_issue", env)
 
     def test_field_answer_is_provisional_and_stale(self):
-        env = c.envelope(self.DIAG, source_tier="field", as_of=NOW - timedelta(hours=5), now=NOW)
+        env = c.envelope(self.DIAG, source_tier="device", as_of=NOW - timedelta(hours=5), now=NOW)
         self.assertFalse(env["authoritative"])
         self.assertEqual(env["confidence"], "provisional")
         self.assertEqual(env["staleness_s"], 5 * 3600)

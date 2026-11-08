@@ -26,8 +26,10 @@
   <section class="modebar" aria-label="Network mode">
     <div class="modebar-group">
       <span class="modebar-label">Network mode</span>
-      <div id="mode-chips" class="mode-chips"></div>
-      <label class="m6-toggle"><input type="checkbox" id="m6"> <span class="chip-m6">M6</span> Sensors lost</label>
+      <div id="mode-chips" class="mode-chips" role="radiogroup" aria-label="Network mode"></div>
+      <span class="modebar-label">Events</span>
+      <label class="ev-toggle"><input type="checkbox" id="ev-ai"> Cloud AI outage</label>
+      <label class="ev-toggle"><input type="checkbox" id="ev-sensors"> Sensors lost</label>
     </div>
     <div class="modebar-group scenario">
       <span class="modebar-label">Scenario</span>
@@ -43,13 +45,18 @@
   <main class="layout">
     <section class="map-wrap">
       <div id="kpis" class="kpis"></div>
-      <div class="map-box">
+      <div class="view-tabs" role="tablist" aria-label="Main view">
+        <button role="tab" class="view-tab active" data-view="topo">Where agents run</button>
+        <button role="tab" class="view-tab" data-view="map">Map</button>
+      </div>
+      <div id="topo" class="topo" aria-label="Where agents and databases are running"></div>
+      <div class="map-box" hidden>
         <div id="map" aria-label="Map of assets, depots and technicians"></div>
         <div class="legend">
           <span><i class="dot healthy"></i>Healthy</span>
           <span><i class="dot warning"></i>Warning</span>
           <span><i class="dot fault"></i>Fault</span>
-          <span><i class="sq"></i>Depot hub</span>
+          <span><i class="sq"></i>Depot (edge server)</span>
           <span><i class="tech"></i>Technician</span>
         </div>
       </div>
