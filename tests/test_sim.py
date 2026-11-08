@@ -5,7 +5,11 @@ from hybrid_ai import contracts as c
 from hybrid_ai.sim import catalog as cat
 from hybrid_ai.sim.fleet import SIM_EPOCH, generate_fleet, haversine_km
 from hybrid_ai.sim.network import SCENARIOS, WAN_LINKS, Link, Mode, NetworkSim, Scenario, Segment
-from hybrid_ai.sim.telemetry import fault_progress, live_telemetry
+import tempfile
+from pathlib import Path
+
+from hybrid_ai.sim.telemetry import (
+    export_telemetry_files, fault_progress, live_telemetry, read_telemetry_file)
 
 FLEET = generate_fleet(seed=42)
 
@@ -78,6 +82,14 @@ class FleetGeneration(unittest.TestCase):
                 self.assertIn(fm.code, text)
         self.assertTrue(any("lockout" in m.title.lower() for m in FLEET.manuals))
 
+    def test_demo_scale_under_50(self):
+        for name, items in (("sites", FLEET.sites), ("assets", FLEET.assets), ("technicians", FLEET.technicians),
+                            ("depots", FLEET.depots)):
+            self.assertLess(len(items), 50, name)
+        self.assertGreaterEqual(len(FLEET.active_faults), 3)
+        self.assertTrue(any(d.has_workshop for d in FLEET.depots))
+        self.assertTrue(all(d.has_hub for d in FLEET.depots))
+
     def test_haversine_sacramento_fresno(self):
         sac, fat = FLEET.depot("DEP-SAC").location, FLEET.depot("DEP-FAT").location
         self.assertAlmostEqual(haversine_km(sac, fat), 250, delta=15)
@@ -118,6 +130,19 @@ class Telemetry(unittest.TestCase):
             if live_telemetry(FLEET, aid, late, window_min=10)["alarms"]:
                 alarmed += 1
         self.assertGreater(alarmed, len(FLEET.active_faults) // 2)
+
+    def test_file_round_trip_matches_live(self):
+        with tempfile.TemporaryDirectory() as d:
+            paths = export_telemetry_files(FLEET, d, SIM_EPOCH, hours=2)
+            self.assertEqual(len(paths), len(FLEET.assets))
+            at = SIM_EPOCH + timedelta(hours=1, minutes=30)
+            from_file = read_telemetry_file(Path(d) / f"{self.faulty}.jsonl", at, window_min=20)
+            live = live_telemetry(FLEET, self.faulty, at, window_min=20)
+            self.assertEqual(from_file["series"], live["series"])
+            c.validate_response("get_live_telemetry",
+                                c.envelope(from_file, source_tier="edge", as_of=at, now=at))
+            only = read_telemetry_file(paths[0], at, window_min=5, signals=[from_file["series"][0]["signal"]])
+            self.assertEqual(len(only["series"]), 1)
 
     def test_bushing_crack_detectable(self):
         model, fm = cat.failure_mode("XFM-BUSH-CRACK")

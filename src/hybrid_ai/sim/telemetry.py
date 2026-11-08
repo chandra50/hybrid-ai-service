@@ -10,8 +10,10 @@ Output matches the ``get_live_telemetry`` contract result.
 
 from __future__ import annotations
 
+import json
 import random
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 
 from . import catalog as cat
@@ -96,3 +98,66 @@ def live_telemetry(
         series.append({"signal": sig.name, "unit": sig.unit, "points": points})
 
     return {"asset_id": asset_id, "series": series, "alarms": alarms}
+
+
+# -- file-based telemetry (demo stand-in for OPC-UA / Modbus / MQTT) -------
+
+def export_telemetry_files(
+    fleet: Fleet,
+    out_dir: str | Path,
+    start: datetime,
+    hours: float = 24.0,
+    step_min: int = 1,
+) -> list[Path]:
+    """Write one JSONL file per asset: reading lines plus alarm lines.
+
+    Each line is either
+      {"type": "reading", "ts", "signal", "unit", "value"} or
+      {"type": "alarm", "ts", "code", "severity", "message"}.
+    The edge telemetry MCP server replays these files.
+    """
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    window = int(hours * 60)
+    end = start + timedelta(minutes=window)
+    paths = []
+    for asset in fleet.assets:
+        data = live_telemetry(fleet, asset.asset_id, end, window_min=window, step_min=step_min)
+        lines = []
+        for s in data["series"]:
+            for pt in s["points"]:
+                lines.append({"type": "reading", "ts": pt["ts"], "signal": s["signal"],
+                              "unit": s["unit"], "value": pt["value"]})
+        lines += [{"type": "alarm", **a} for a in data["alarms"]]
+        lines.sort(key=lambda r: (r["ts"], r["type"]))
+        path = out / f"{asset.asset_id}.jsonl"
+        path.write_text("".join(json.dumps(r) + "\n" for r in lines), encoding="utf-8")
+        paths.append(path)
+    return paths
+
+
+def read_telemetry_file(
+    path: str | Path,
+    at: datetime,
+    window_min: int = 60,
+    signals: list[str] | None = None,
+) -> dict[str, Any]:
+    """Read a JSONL telemetry file and return a ``get_live_telemetry`` result."""
+    path = Path(path)
+    start = at - timedelta(minutes=window_min)
+    series: dict[str, dict[str, Any]] = {}
+    alarms = []
+    with path.open(encoding="utf-8") as fh:
+        for line in fh:
+            rec = json.loads(line)
+            ts = _parse(rec["ts"])
+            if not start <= ts <= at:
+                continue
+            if rec["type"] == "reading":
+                if signals and rec["signal"] not in signals:
+                    continue
+                s = series.setdefault(rec["signal"], {"signal": rec["signal"], "unit": rec["unit"], "points": []})
+                s["points"].append({"ts": rec["ts"], "value": rec["value"]})
+            elif rec["type"] == "alarm":
+                alarms.append({k: rec[k] for k in ("code", "ts", "severity", "message") if k in rec})
+    return {"asset_id": path.stem, "series": list(series.values()), "alarms": alarms}

@@ -163,11 +163,11 @@ def _iso(dt: datetime) -> str:
 
 def generate_fleet(
     seed: int = 42,
-    sites_per_depot: int = 6,
-    assets_per_site: tuple[int, int] = (2, 5),
-    techs_per_depot: int = 4,
+    sites_per_depot: int = 2,
+    assets_per_site: tuple[int, int] = (2, 3),
+    techs_per_depot: int = 2,
     history_years: int = 4,
-    fault_rate: float = 0.12,
+    fault_rate: float = 0.25,
 ) -> Fleet:
     rng = random.Random(seed)
 

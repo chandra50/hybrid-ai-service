@@ -1,6 +1,6 @@
 # hybrid-ai: Field Service Agent Design
 
-**Status:** Draft v0.1 · 2026-11-08
+**Status:** Draft v0.2 · 2026-11-08 (demo scope decided, see §11)
 **Scope:** An MCP-based agent system that helps maintain a large fleet of industrial equipment spread across California, and keeps working when the network is intermittent, slow, or the cloud is gone.
 
 ---
@@ -320,7 +320,7 @@ When a WO is assigned, or nightly for each technician's territory, the sync agen
 | Concern | Choice (initial) |
 |---------|-----------------|
 | MCP servers | Python with the official MCP SDK (same codebase deployed per tier, with a backend adapter per tier) |
-| Edge protocols | OPC-UA, Modbus TCP, MQTT (Mosquitto at edge) |
+| Edge protocols | Demo: replay telemetry from JSONL files. Later: OPC-UA, Modbus TCP, MQTT (Mosquitto at edge) |
 | Local storage | SQLite (outbox, caches) + sqlite-vec or LanceDB for local vector search |
 | Cloud storage | Postgres + object storage; existing CMMS/ERP via adapter MCP servers |
 | Local models | Small open model on device, mid-size on hub (llama.cpp / Ollama class runtime) |
@@ -362,11 +362,28 @@ Mean time to diagnose, first-time fix rate, technician drive time per WO, parts-
 
 ---
 
-## 11. Open questions
+## 11. Decisions for the demo (answers to the open questions)
 
-1. Which CMMS/ERP systems are in use today (for example Maximo, SAP PM, Fiix, UpKeep)? This decides the adapter MCP servers.
-2. What equipment classes and protocols are involved, and do assets already have gateways/SCADA?
-3. Roughly how many assets, sites, technicians and depots?
-4. Does a regional depot/workshop network exist (needed for the T2 hub)?
-5. What are the approval rules today (who approves dispatch, shutdowns, purchases)?
-6. Are there data-residency or customer contracts limiting what telemetry can go to the cloud?
+| # | Question | Decision | Effect on the design |
+|---|----------|----------|----------------------|
+| 1 | CMMS / ERP in use | **Keep it simple: our own MCP servers are the system of record.** | No adapters to commercial CMMS/ERP. `workorders`, `parts` and `dispatch` MCP servers store their data in local JSON/SQLite seeded from the fleet simulator. An adapter can replace a backend later without changing the tool contracts. |
+| 2 | Equipment classes, protocols, gateways | **Read telemetry from files for the demo.** | The edge `telemetry` MCP server replays per-asset JSONL files exported by the simulator (`hybrid-ai-sim telemetry-files`). OPC-UA/Modbus/MQTT are out of scope for now. The file reader sits behind the same `get_live_telemetry` contract. |
+| 3 | Fleet size | **Under 50** assets, sites and technicians. | Simulator defaults: 6 depots, 12 sites, about 30 assets and 12 technicians. Everything fits in memory, and a single SQLite file per tier is enough. |
+| 4 | Regional depot/workshop network | **Yes, it exists.** | Tier 2 hub is **in scope**: every depot runs a hub and mode M4 is a first-class mode. Four depots also have a workshop for W3. |
+| 5 | Approval rules | **Rule-based.** | Approvals come from a declarative rules file (below), checked by a deterministic `approvals` component, not an LLM. Agents propose; rules decide auto-approve vs human approval. |
+| 6 | Data residency / contract limits | **None.** | All telemetry summaries may go to the cloud. Only the bandwidth classes in §6.3 limit what gets sent. |
+
+### 11.1 Approval rules (initial)
+
+Rules live in `config/approvals.json` (phase 2). The first matching rule wins. The same rule file is evaluated at every tier, so approvals keep working offline. When a rule needs a person who can't be reached, the action stays **pending** and the technician sees why.
+
+| Action | Condition | Outcome |
+|--------|-----------|---------|
+| Shutdown / stop unit | Edge safety rule fired (`safety_override`) | **Auto-approved**, and the planner is notified |
+| Shutdown / stop unit | Anything else | Requires **site operator** approval |
+| Dispatch technician | Urgency `routine`/`soon`, skills fully matched, technician on shift | **Auto-approved** |
+| Dispatch technician | Urgency `urgent`/`emergency`, or missing skills, or overtime | Requires **planner** approval |
+| Reserve parts | Truck or depot stock, total < $1,000 | **Auto-approved** |
+| Reserve / order parts | Total ≥ $1,000, or vendor order | Requires **regional manager** approval |
+| Send to workshop | Any | Requires **planner** approval |
+| Any action while offline (not authoritative) | Would otherwise be auto-approved | **Auto-approved as provisional**, confirmed on sync |

@@ -3,6 +3,7 @@
     python -m hybrid_ai.sim fleet --seed 42 --out data/fleet.json
     python -m hybrid_ai.sim faults --seed 42
     python -m hybrid_ai.sim telemetry AST-00007 --hours-after 48
+    python -m hybrid_ai.sim telemetry-files --out data/telemetry --hours 24
     python -m hybrid_ai.sim scenarios
     python -m hybrid_ai.sim scenario remote_site_visit --probe-every 900
 """
@@ -15,7 +16,7 @@ from datetime import timedelta
 
 from .fleet import SIM_EPOCH, generate_fleet
 from .network import SCENARIOS, Link, NetworkSim
-from .telemetry import live_telemetry
+from .telemetry import export_telemetry_files, live_telemetry
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -33,6 +34,11 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("asset_id")
     p.add_argument("--hours-after", type=float, default=0.0, help="hours after the sim epoch")
     p.add_argument("--window-min", type=int, default=30)
+
+    p = sub.add_parser("telemetry-files", help="export per-asset JSONL telemetry files (edge demo input)")
+    p.add_argument("--out", default="data/telemetry")
+    p.add_argument("--hours", type=float, default=24.0, help="hours of data starting at the sim epoch")
+    p.add_argument("--step-min", type=int, default=1)
 
     sub.add_parser("scenarios", help="list network scenarios")
 
@@ -62,6 +68,11 @@ def main(argv: list[str] | None = None) -> None:
         fleet = generate_fleet(seed=args.seed)
         at = SIM_EPOCH + timedelta(hours=args.hours_after)
         print(json.dumps(live_telemetry(fleet, args.asset_id, at, window_min=args.window_min), indent=2))
+
+    elif args.cmd == "telemetry-files":
+        fleet = generate_fleet(seed=args.seed)
+        paths = export_telemetry_files(fleet, args.out, SIM_EPOCH, hours=args.hours, step_min=args.step_min)
+        print(f"wrote {len(paths)} files to {args.out} ({args.hours} h at {args.step_min}-min resolution)")
 
     elif args.cmd == "scenarios":
         for s in SCENARIOS.values():
