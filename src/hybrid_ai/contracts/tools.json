@@ -1,0 +1,373 @@
+{
+  "$comment": "hybrid-ai MCP tool contracts. Same names and schemas at every tier (edge, field, hub, cloud). Every tool response is wrapped in the provenance envelope built by hybrid_ai.contracts.",
+  "version": "0.1.0",
+  "$defs": {
+    "AssetId": { "type": "string", "pattern": "^AST-[0-9]{5}$" },
+    "TechnicianId": { "type": "string", "pattern": "^TEC-[0-9]{4}$" },
+    "WorkOrderId": { "type": "string", "pattern": "^WO-[0-9A-Z-]{4,}$" },
+    "PartNumber": { "type": "string", "pattern": "^P-[A-Z]{3}-[0-9]{4}$" },
+    "Timestamp": { "type": "string", "format": "date-time" },
+    "Tier": { "enum": ["edge", "field", "hub", "cloud"] },
+    "Severity": { "enum": ["low", "medium", "high", "critical"] },
+    "Urgency": { "enum": ["routine", "soon", "urgent", "emergency"] },
+    "GeoPoint": {
+      "type": "object",
+      "required": ["lat", "lon"],
+      "properties": {
+        "lat": { "type": "number", "minimum": 32.0, "maximum": 42.5 },
+        "lon": { "type": "number", "minimum": -125.0, "maximum": -114.0 }
+      },
+      "additionalProperties": false
+    },
+    "Provenance": {
+      "type": "object",
+      "required": ["source_tier", "as_of", "staleness_s", "confidence", "authoritative"],
+      "properties": {
+        "source_tier": { "$ref": "#/$defs/Tier" },
+        "as_of": { "$ref": "#/$defs/Timestamp" },
+        "staleness_s": { "type": "integer", "minimum": 0 },
+        "confidence": { "enum": ["confirmed", "provisional", "degraded"] },
+        "authoritative": { "type": "boolean" }
+      }
+    },
+    "Cause": {
+      "type": "object",
+      "required": ["cause_code", "description", "probability"],
+      "properties": {
+        "cause_code": { "type": "string" },
+        "description": { "type": "string" },
+        "probability": { "type": "number", "minimum": 0, "maximum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "Diagnosis": {
+      "type": "object",
+      "required": ["asset_id", "causes", "severity", "safe_to_run", "safety_override"],
+      "properties": {
+        "asset_id": { "$ref": "#/$defs/AssetId" },
+        "causes": { "type": "array", "items": { "$ref": "#/$defs/Cause" } },
+        "severity": { "$ref": "#/$defs/Severity" },
+        "safe_to_run": { "type": "boolean" },
+        "safety_override": {
+          "type": "boolean",
+          "description": "True when an edge safety rule forced safe_to_run=false. No agent may override this."
+        },
+        "evidence": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "WorkOrder": {
+      "type": "object",
+      "required": ["work_order_id", "asset_id", "status", "priority", "updated_at"],
+      "properties": {
+        "work_order_id": { "$ref": "#/$defs/WorkOrderId" },
+        "asset_id": { "$ref": "#/$defs/AssetId" },
+        "status": { "enum": ["open", "triaged", "assigned", "en_route", "in_progress", "awaiting_parts", "completed", "cancelled"] },
+        "priority": { "$ref": "#/$defs/Urgency" },
+        "assigned_technician_id": { "$ref": "#/$defs/TechnicianId" },
+        "repair_location": { "enum": ["on_site", "workshop"] },
+        "cause_code": { "type": "string" },
+        "notes": { "type": "string" },
+        "provisional": { "type": "boolean" },
+        "updated_at": { "$ref": "#/$defs/Timestamp" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "tools": {
+    "diagnose_issue": {
+      "description": "Rank probable causes for an asset problem from telemetry, alarms, symptoms, manuals and past repairs. Edge safety rules always win.",
+      "input": {
+        "type": "object",
+        "required": ["asset_id"],
+        "properties": {
+          "asset_id": { "$ref": "#/$defs/AssetId" },
+          "symptoms": { "type": "array", "items": { "type": "string" } },
+          "telemetry_window_min": { "type": "integer", "minimum": 1, "maximum": 10080 }
+        },
+        "additionalProperties": false
+      },
+      "output": { "$ref": "#/$defs/Diagnosis" }
+    },
+    "find_technicians": {
+      "description": "Rank technicians for a job by skills, certifications, availability, distance and workload.",
+      "input": {
+        "type": "object",
+        "required": ["asset_id", "skill_tags", "urgency"],
+        "properties": {
+          "asset_id": { "$ref": "#/$defs/AssetId" },
+          "skill_tags": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+          "urgency": { "$ref": "#/$defs/Urgency" },
+          "max_results": { "type": "integer", "minimum": 1, "maximum": 50, "default": 5 }
+        },
+        "additionalProperties": false
+      },
+      "output": {
+        "type": "object",
+        "required": ["candidates"],
+        "properties": {
+          "candidates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["technician_id", "name", "score", "available", "skills_matched", "missing_skills"],
+              "properties": {
+                "technician_id": { "$ref": "#/$defs/TechnicianId" },
+                "name": { "type": "string" },
+                "score": { "type": "number", "minimum": 0, "maximum": 1 },
+                "available": { "type": "boolean" },
+                "distance_km": { "type": "number", "minimum": 0 },
+                "eta_min": { "type": "integer", "minimum": 0 },
+                "skills_matched": { "type": "array", "items": { "type": "string" } },
+                "missing_skills": { "type": "array", "items": { "type": "string" } }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "recommend_repair_location": {
+      "description": "Decide on-site repair vs workshop using an explainable factor score.",
+      "input": {
+        "type": "object",
+        "required": ["asset_id", "cause_code"],
+        "properties": {
+          "asset_id": { "$ref": "#/$defs/AssetId" },
+          "cause_code": { "type": "string" }
+        },
+        "additionalProperties": false
+      },
+      "output": {
+        "type": "object",
+        "required": ["location", "score_on_site", "score_workshop", "factors"],
+        "properties": {
+          "location": { "enum": ["on_site", "workshop"] },
+          "workshop_id": { "type": "string" },
+          "score_on_site": { "type": "number" },
+          "score_workshop": { "type": "number" },
+          "factors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["factor", "favors", "weight"],
+              "properties": {
+                "factor": { "type": "string" },
+                "favors": { "enum": ["on_site", "workshop", "neutral"] },
+                "weight": { "type": "number", "minimum": 0 }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "check_parts": {
+      "description": "Find part availability, searching truck -> nearby trucks -> depot -> warehouse -> vendor.",
+      "input": {
+        "type": "object",
+        "properties": {
+          "part_numbers": { "type": "array", "items": { "$ref": "#/$defs/PartNumber" }, "minItems": 1 },
+          "cause_code": { "type": "string" },
+          "near": { "$ref": "#/$defs/GeoPoint" },
+          "technician_id": { "$ref": "#/$defs/TechnicianId" }
+        },
+        "anyOf": [{ "required": ["part_numbers"] }, { "required": ["cause_code"] }],
+        "additionalProperties": false
+      },
+      "output": {
+        "type": "object",
+        "required": ["parts"],
+        "properties": {
+          "parts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["part_number", "description", "sources"],
+              "properties": {
+                "part_number": { "$ref": "#/$defs/PartNumber" },
+                "description": { "type": "string" },
+                "sources": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["source_type", "source_id", "qty"],
+                    "properties": {
+                      "source_type": { "enum": ["truck", "depot", "warehouse", "vendor"] },
+                      "source_id": { "type": "string" },
+                      "qty": { "type": "integer", "minimum": 0 },
+                      "eta_hours": { "type": "number", "minimum": 0 }
+                    },
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "reserve_parts": {
+      "description": "Reserve parts for a work order. Hard reservation only at the authoritative tier; otherwise soft (provisional).",
+      "input": {
+        "type": "object",
+        "required": ["work_order_id", "items", "idempotency_key"],
+        "properties": {
+          "work_order_id": { "$ref": "#/$defs/WorkOrderId" },
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["part_number", "qty", "source_id"],
+              "properties": {
+                "part_number": { "$ref": "#/$defs/PartNumber" },
+                "qty": { "type": "integer", "minimum": 1 },
+                "source_id": { "type": "string" }
+              },
+              "additionalProperties": false
+            }
+          },
+          "idempotency_key": { "type": "string", "minLength": 8 }
+        },
+        "additionalProperties": false
+      },
+      "output": {
+        "type": "object",
+        "required": ["reservation_id", "status", "items"],
+        "properties": {
+          "reservation_id": { "type": "string" },
+          "status": { "enum": ["hard", "soft", "rejected"] },
+          "expires_at": { "$ref": "#/$defs/Timestamp" },
+          "reason": { "type": "string" },
+          "items": { "type": "array", "items": { "type": "object" } }
+        },
+        "additionalProperties": false
+      }
+    },
+    "search_knowledge": {
+      "description": "Search service manuals and repair history for an asset model.",
+      "input": {
+        "type": "object",
+        "required": ["asset_model", "query"],
+        "properties": {
+          "asset_model": { "type": "string" },
+          "query": { "type": "string", "minLength": 1 },
+          "kinds": { "type": "array", "items": { "enum": ["manual", "repair"] } },
+          "limit": { "type": "integer", "minimum": 1, "maximum": 50, "default": 5 }
+        },
+        "additionalProperties": false
+      },
+      "output": {
+        "type": "object",
+        "required": ["hits"],
+        "properties": {
+          "hits": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["kind", "doc_id", "title", "snippet", "score"],
+              "properties": {
+                "kind": { "enum": ["manual", "repair"] },
+                "doc_id": { "type": "string" },
+                "title": { "type": "string" },
+                "snippet": { "type": "string" },
+                "score": { "type": "number", "minimum": 0 }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "get_live_telemetry": {
+      "description": "Recent readings and alarms for an asset. Answered from the edge whenever reachable.",
+      "input": {
+        "type": "object",
+        "required": ["asset_id"],
+        "properties": {
+          "asset_id": { "$ref": "#/$defs/AssetId" },
+          "signals": { "type": "array", "items": { "type": "string" } },
+          "window_min": { "type": "integer", "minimum": 1, "maximum": 1440, "default": 60 }
+        },
+        "additionalProperties": false
+      },
+      "output": {
+        "type": "object",
+        "required": ["asset_id", "series", "alarms"],
+        "properties": {
+          "asset_id": { "$ref": "#/$defs/AssetId" },
+          "series": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["signal", "unit", "points"],
+              "properties": {
+                "signal": { "type": "string" },
+                "unit": { "type": "string" },
+                "points": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["ts", "value"],
+                    "properties": {
+                      "ts": { "$ref": "#/$defs/Timestamp" },
+                      "value": { "type": "number" }
+                    },
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "alarms": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["code", "ts", "severity"],
+              "properties": {
+                "code": { "type": "string" },
+                "ts": { "$ref": "#/$defs/Timestamp" },
+                "severity": { "$ref": "#/$defs/Severity" },
+                "message": { "type": "string" }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "update_work_order": {
+      "description": "Apply a patch to a work order. Offline tiers queue it in the outbox; replay is idempotent.",
+      "input": {
+        "type": "object",
+        "required": ["work_order_id", "patch", "idempotency_key"],
+        "properties": {
+          "work_order_id": { "$ref": "#/$defs/WorkOrderId" },
+          "patch": {
+            "type": "object",
+            "minProperties": 1,
+            "properties": {
+              "status": { "$ref": "#/$defs/WorkOrder/properties/status" },
+              "assigned_technician_id": { "$ref": "#/$defs/TechnicianId" },
+              "repair_location": { "enum": ["on_site", "workshop"] },
+              "cause_code": { "type": "string" },
+              "notes": { "type": "string" }
+            },
+            "additionalProperties": false
+          },
+          "idempotency_key": { "type": "string", "minLength": 8 }
+        },
+        "additionalProperties": false
+      },
+      "output": { "$ref": "#/$defs/WorkOrder" }
+    }
+  }
+}
