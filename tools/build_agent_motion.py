@@ -154,6 +154,12 @@ def set_alpha(shape, alpha_pct: int) -> None:
 # ---------------------------------------------------------------- PPTX
 def build_pptx(out: Path) -> None:
     d = Deck()
+    add_motion_slide(d)
+    d.save(out)
+
+
+def add_motion_slide(d) -> None:
+    """Append the animated slide to an existing Deck (used by the design and brief decks too)."""
     s = d.slide("Where agents run as the network changes",
                 notes="Click five times. 1 Online: orchestration, the repair-rec model, dispatch, logistics and the "
                       "assistant LLM run in the cloud; safety rules at the edge; the field assistant and sync on the "
@@ -258,7 +264,6 @@ def build_pptx(out: Path) -> None:
     ext = s._element.find(qn("p:extLst"))
     if ext is not None:
         s._element.remove(ext); s._element.append(ext)
-    d.save(out)
 
 
 # ---------------------------------------------------------------- GIF preview

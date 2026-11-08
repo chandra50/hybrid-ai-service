@@ -457,6 +457,10 @@ def build(out: Path) -> None:
                 d.chip(s, x + 0.15, y + 0.06, colw - 0.3, 0.4, "unavailable", TINT2, MUTED, size=11, bold=False)
         d.text(s, hx + 3 * (colw + 0.15) + 0.1, y, 3.3, 0.55, note, size=12, color=MUTED, anchor=MID)
 
+    # Animated: agents moving between device, edge and cloud (click through in Slide Show)
+    from build_agent_motion import add_motion_slide
+    add_motion_slide(d)
+
     # 12 - Mode x workflow -----------------------------------------------
     s = d.slide("Each mode, each workflow", notes="What every workflow does in each mode, with the place that answers.")
     tbl = [["Workflow", "Online", "Limited", "Offline"],

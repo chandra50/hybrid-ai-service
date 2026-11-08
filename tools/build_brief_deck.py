@@ -103,6 +103,10 @@ def build(out: Path) -> None:
         d.text(s, 7.2, y, 5.5, 1.1, [{"text": h, "bold": True, "size": 17}, {"text": b, "size": 14, "color": MUTED}],
                space_after=2)
 
+    # Animated: agents moving between device, edge and cloud (click through in Slide Show)
+    from build_agent_motion import add_motion_slide
+    add_motion_slide(d)
+
     # 5 - Supervisor -----------------------------------------------------------
     s = d.slide("Supervisor's view: decide fast, see everything",
                 notes="The supervisor works from the office, always online. What changes with the field's network "
