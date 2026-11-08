@@ -81,6 +81,8 @@ Then open http://localhost:8765. Add `--reset` to rebuild the database. Map tile
 - [docs/hybrid-ai-brief.pptx](docs/hybrid-ai-brief.pptx): 8-slide brief covering the situation, the challenges and the solution, from the supervisor's and the repairing technician's points of view.
 - [docs/hybrid-ai-design.pptx](docs/hybrid-ai-design.pptx): 21-slide design overview, including how each hybrid mode is handled.
 
+- [docs/agent-movement.pptx](docs/agent-movement.pptx): one animated slide (5 clicks in Slide Show) of agents moving between device, edge and cloud as the mode changes; [docs/agent-movement.gif](docs/agent-movement.gif) is a preview. Rebuild with `python tools/build_agent_motion.py`.
+
 Rebuild them with `pip install python-pptx`, then `python tools/build_brief_deck.py` and `python tools/build_deck.py`.
 
 ## Next: phase 2
