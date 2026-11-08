@@ -1,6 +1,6 @@
 # hybrid-ai
 
-MCP-based agents for maintaining a large fleet of industrial equipment across
+MCP-based agents for maintaining a fleet of industrial compressors across
 California. The system keeps working when the network is slow, intermittent, or
 gone, and when the cloud AI is unavailable.
 
@@ -14,7 +14,7 @@ M0–M6.
 |-------|-------|-------------|
 | MCP tool contracts | `src/hybrid_ai/contracts/tools.json` | JSON Schemas for the 8 tools, shared by every tier |
 | Contract helpers | `src/hybrid_ai/contracts/__init__.py` | Validate inputs/responses; wrap results in the provenance envelope (`source_tier`, `as_of`, `staleness_s`, `confidence`, `authoritative`) |
-| Fleet simulator | `src/hybrid_ai/sim/fleet.py`, `catalog.py` | Deterministic CA fleet sized for the demo (6 depots with hubs, 12 sites, ~30 assets, 12 technicians), sites with coverage quality, 5 equipment models with failure modes, technicians with skills, stock on trucks/depots/warehouse, repair history, manuals, open work orders, hidden ground-truth faults |
+| Fleet simulator | `src/hybrid_ai/sim/fleet.py`, `catalog.py` | Deterministic CA fleet sized for the demo (6 depots with hubs, 12 sites, ~30 compressors, 12 technicians), sites with coverage quality, 5 compressor types with failure modes, technicians with skills, stock in the vans/depots/warehouse, repair history, manuals, open work orders, hidden ground-truth faults |
 | Telemetry simulator | `src/hybrid_ai/sim/telemetry.py` | Sensor readings with faults that drift in over time, plus warn/trip alarms. Exports per-asset JSONL files that the edge server replays (the demo stand-in for OPC-UA/Modbus/MQTT) |
 | Network fault injector | `src/hybrid_ai/sim/network.py` | Modes M0–M5 per link, an M6 sensor-loss overlay, and named scenarios (remote site visit, PSPS outage, cloud model outage, satellite backup, sensor failure) |
 
@@ -54,25 +54,32 @@ Or install it as a package with `pip install -e .[dev]` and use the `hybrid-ai-s
 
 ## Demo dashboard
 
-A web dashboard with two personas, built on OpenStreetMap (Leaflet):
+A web dashboard on OpenStreetMap (Leaflet) with three personas:
 
-- **Supervisor:** fleet map, KPIs, the work-order queue, and each order's agent plan (W1 diagnosis, W2 technician ranking, W3 repair location, W4 parts) with rule-based approvals. Every answer is labeled with the tier that answered, its confidence and its age.
-- **Technician:** my job, route on the map, guided diagnosis, LOTO checklist, mission pack (manuals and past repairs), parts vs truck stock, live data over the local link, close-out, and an outbox.
-- **Hybrid modes:** switch M0–M5 and the M6 overlay by hand, or play a simulator scenario (remote site visit, wildfire shutoff, cloud AI outage...). Labels, data freshness and outbox sync change with the mode. Something recorded offline as the technician stays invisible to the supervisor until the link returns.
+- **Supervisor:** fleet map, KPIs, the work-order queue, and each order's agent plan (W1 diagnosis, W2 technician ranking, W3 repair location, W4 parts) with rule-based approvals. Every answer shows which tier answered, its confidence and its age.
+- **Technician:** the assigned job with its **repair plan from the database** (lockout, verify, repair, test, close-out steps), plus diagnosis, mission pack, parts vs van stock, live data over the local link, close-out and an outbox.
+- **Assigned tech walkthrough:** the assigned technician repairs a compressor step by step, from the depot, through a dead zone and back into coverage, following the database plan. Steps done offline reach the database when the link returns.
+
+Also on every view:
+
+- **Assistant** ("Ask" button): a minimal chat about the selected job. Each answer shows where it ran (cloud, hub or device model) and what it cost.
+- **Live requests panel:** every request (screen actions, assistant questions, outbox replays) with the tool, where it ran, why it ran there, time taken and tokens in/out, plus totals by tier.
+- **Hybrid modes:** switch M0–M5 and the M6 overlay by hand, or play a simulator scenario.
+
+Run it with the API server, which builds the repair recommendations database (SQLite, `data/repair_recommendations.db`) on first start:
 
 ```bash
-PYTHONPATH=src python3 -m hybrid_ai.demo.build_data
+PYTHONPATH=src python3 -m hybrid_ai.demo.server --port 8765
 ```
 
-```bash
-python3 -m http.server 8765 --directory dashboard
-```
+Then open http://localhost:8765. Add `--reset` to rebuild the database. Map tiles need an internet connection. Without the server (for example a plain static server), the dashboard falls back to the plans embedded in `dashboard/data.js`. Regenerate that file with `PYTHONPATH=src python3 -m hybrid_ai.demo.build_data`.
 
-Then open http://localhost:8765. Map tiles need an internet connection; everything else runs locally.
+## Slide decks
 
-## Slide deck
+- [docs/hybrid-ai-brief.pptx](docs/hybrid-ai-brief.pptx): 8-slide brief covering the situation, the challenges and the solution, from the supervisor's and the repairing technician's points of view.
+- [docs/hybrid-ai-design.pptx](docs/hybrid-ai-design.pptx): 21-slide design overview, including how each hybrid mode is handled.
 
-[docs/hybrid-ai-design.pptx](docs/hybrid-ai-design.pptx) is a 21-slide overview of the design, including how each hybrid mode is handled. Rebuild it with `pip install python-pptx` and `python tools/build_deck.py`.
+Rebuild them with `pip install python-pptx`, then `python tools/build_brief_deck.py` and `python tools/build_deck.py`.
 
 ## Next: phase 2
 

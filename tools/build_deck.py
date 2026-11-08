@@ -262,7 +262,7 @@ def build(out: Path) -> None:
     flows = [("W1", "Triage", "What is wrong, how bad, safe to run?"),
              ("W2", "Technician", "Who is qualified, close and available?"),
              ("W3", "Location", "Fix on site or pull to a workshop?"),
-             ("W4", "Parts", "Truck, depot, warehouse or order? Reserve them"),
+             ("W4", "Parts", "Van, depot, warehouse or order? Reserve them"),
              ("W5", "Execution", "Procedures, manuals, LOTO at the asset"),
              ("W6", "Close-out", "Record the fix so triage gets smarter")]
     cw, gap = 1.85, 0.2
@@ -308,8 +308,8 @@ def build(out: Path) -> None:
              "Work orders, assignments, reservations, purchase orders"),
             ("Hub", "T2  Regional depot hub", "Mid-size local model · regional mirror of manuals, history, roster, depot stock",
              "Depot stock and workshop bays"),
-            ("Field", "T1  Technician device", "Small on-device model · mission packs, truck stock, offline outbox",
-             "Truck stock and on-site observations"),
+            ("Field", "T1  Technician device", "Small on-device model · mission packs, van stock, offline outbox",
+             "Van stock and on-site observations"),
             ("Edge", "T0  Site edge gateway", "No LLM: rules and anomaly models · live telemetry, 7–30 day buffer",
              "Live equipment state and alarms")]
     d.text(s, 7.35, 1.45, 5.3, 0.35, "AUTHORITATIVE FOR", size=12, bold=True, color=MUTED)
@@ -381,7 +381,7 @@ def build(out: Path) -> None:
     agents = [("Orchestrator", ["Cloud", "Hub"], "Owns a work order end to end, plans W1–W6, asks people for approvals"),
               ("Diagnosis", ["Cloud", "Hub", "Field"], "Telemetry, alarms, manuals and past repairs → ranked causes and a safety verdict"),
               ("Dispatch", ["Cloud", "Hub"], "Scores technicians on skills, certifications, distance, workload and SLA"),
-              ("Logistics", ["Cloud", "Hub"], "On-site vs workshop; parts from truck → depot → warehouse → vendor"),
+              ("Logistics", ["Cloud", "Hub"], "On-site vs workshop; parts from van → depot → warehouse → vendor"),
               ("Field assistant", ["Field"], "Procedures, LOTO checklist, live readings and findings, fully offline"),
               ("Sync service", ["Edge", "Field", "Hub", "Cloud"], "No LLM: mission packs, outbox replay, conflict rules")]
     aw, ah, ag = (CW - 2 * 0.3) / 3, 2.4, 0.3
@@ -477,7 +477,7 @@ def build(out: Path) -> None:
             ["Soft reservation, confirmed on sync", "Fully local", "Outbox, replayed on reconnect"],
             ["Live ERP (data still up)", "Fully local", "Real-time sync"],
             ["Depot live, others from snapshot", "Fully local", "Queued at the hub"],
-            ["Truck stock only", "Fully local", "Outbox on the device"],
+            ["Van stock only", "Fully local", "Outbox on the device"],
             ["Unchanged", "Manual readings on device", "Sensor fault gets its own WO"]]
     for title, heads, body, note in (
         ("Each mode, workflows W1–W3", ["Mode", "W1  Diagnosis", "W2  Technician", "W3  Repair location"], w123,
@@ -510,7 +510,7 @@ def build(out: Path) -> None:
         (0, 1, "M0", "At depot: mission and territory packs synced", ""),
         (1, 2, "M1", "Highway: WO updates only, media deferred", ""),
         (2, 3, "M2", "Approach: last check-in, assignment provisional", ""),
-        (3, 6, "M5", "On site, no coverage: diagnosis from edge rules and the device model, truck stock, LOTO "
+        (3, 6, "M5", "On site, no coverage: diagnosis from edge rules and the device model, van stock, LOTO "
                      "checklist; findings and photos go to the outbox", ""),
         (6, 7, "M2", "Driving out: outbox sends P0–P1 first", ""),
         (7, 8, "M0", "In coverage: replay, reservations confirmed, photos upload", ""),
@@ -528,7 +528,7 @@ def build(out: Path) -> None:
     timeline(s, 2.3, 24, [(0, 2, "M0", "", ""), (2, 4, "M4", "", ""), (4, 16, "M5", "", " + M6  site power and sensors out"),
                           (16, 20, "M4", "", ""), (20, 24, "M0", "", "")], tick_every=4, labels=False, h=0.55)
     cols3 = [("Depot on generator", "The hub dispatches from its roster snapshot; depot stock stays live"),
-             ("Site dark", "Guided inspection instead of telemetry; truck stock only; everything queued"),
+             ("Site dark", "Guided inspection instead of telemetry; van stock only; everything queued"),
              ("Recovery", "The hub replays its queue to the cloud; ownership rules settle conflicts")]
     c3w = (CW - 2 * 0.3) / 3
     for i, (h, b) in enumerate(cols3):
@@ -549,7 +549,7 @@ def build(out: Path) -> None:
            size=18, color=MUTED)
     floor = [("Open the asset's knowledge", "Manuals, procedures, LOTO checklist and past fixes, from the mission pack"),
              ("Get guided diagnosis", "The on-device model reasons over that pack and the technician's observations"),
-             ("Use truck stock", "See what's on the truck and record parts as they're used"),
+             ("Use van stock", "See what's in the van and record parts as they're used"),
              ("Record everything", "Findings, parts used and photos, synced later with no data loss")]
     fw, fg = (CW - 0.3) / 2, 0.3
     for i, (h, b) in enumerate(floor):
@@ -593,7 +593,7 @@ def build(out: Path) -> None:
     s = d.slide("Sync without conflicts: every record has an owner",
                 notes="Ownership rules instead of generic merges. Offline decisions are always proposals.")
     owners = [("Cloud", "Assignments, reservations, purchase orders"), ("Edge", "Telemetry and alarms"),
-              ("Field", "On-site observations, parts used from the truck")]
+              ("Field", "On-site observations, parts used from the van")]
     ow = (CW - 2 * 0.3) / 3
     for i, (t, b) in enumerate(owners):
         fill, col = TIER[t]
@@ -633,7 +633,7 @@ def build(out: Path) -> None:
             ["Shutdown", "Any other case", "Site operator"],
             ["Dispatch", "Routine or soon, skills matched, on shift", "Auto"],
             ["Dispatch", "Urgent, missing skills or overtime", "Planner"],
-            ["Parts", "Truck or depot stock, under $1,000", "Auto"],
+            ["Parts", "Van or depot stock, under $1,000", "Auto"],
             ["Parts", "$1,000 or more, or vendor order", "Regional manager"],
             ["Workshop", "Any transfer to a workshop", "Planner"],
             ["Offline", "Would otherwise be auto", "Auto, provisional"]]

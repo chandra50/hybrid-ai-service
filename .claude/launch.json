@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "dashboard",
-      "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8765", "--directory", "dashboard"],
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd /home/lenovo/hybrid-ai && PYTHONPATH=src exec python3 -m hybrid_ai.demo.server --port 8765 --reset"],
       "port": 8765
     }
   ]

@@ -1,6 +1,6 @@
 # hybrid-ai: Field Service Agent Design
 
-**Status:** Draft v0.2 · 2026-11-08 (demo scope decided, see §11)
+**Status:** Draft v0.3 · 2026-11-08 (demo scope decided, see §11)
 **Scope:** An MCP-based agent system that helps maintain a large fleet of industrial equipment spread across California, and keeps working when the network is intermittent, slow, or the cloud is gone.
 
 ---
@@ -14,7 +14,7 @@ For every equipment issue, the maintainer runs the same decision chain:
 | W1 | **Triage and diagnosis** | What is wrong, how bad is it, is it safe to keep running? |
 | W2 | **Technician allocation** | Who is qualified, close, available, and certified for this asset? |
 | W3 | **Repair location** | Fix it on site, or pull it to a workshop/depot? |
-| W4 | **Parts availability** | Are the parts on the truck, at a depot, or do they need ordering? Reserve them. |
+| W4 | **Parts availability** | Are the parts in the van, at a depot, or do they need ordering? Reserve them. |
 | W5 | **Execution support** | Step-by-step procedure, manuals, past fixes, safety (LOTO) checklist at the asset. |
 | W6 | **Close-out and learning** | Record what was done so future triage gets better. |
 
@@ -50,10 +50,10 @@ flowchart TB
     H_MIRROR["Mirrors: regional manuals, history,<br/>roster snapshot, depot stock"]
   end
 
-  subgraph FIELD["Tier 1 - Technician device / truck"]
+  subgraph FIELD["Tier 1 - Technician device / van"]
     F_AGENT["Field agent<br/>(small on-device model)"]
     F_PACK["MCP: mission pack<br/>(pre-staged manuals, history, BOM)"]
-    F_TRUCK["MCP: truck stock"]
+    F_VAN["MCP: van stock"]
     F_OUT["MCP: outbox<br/>(queued work-order updates)"]
   end
 
@@ -77,7 +77,7 @@ flowchart TB
 | Tier | Runs on | Agent / model | Holds | Authoritative for |
 |------|---------|---------------|-------|-------------------|
 | **T0 Edge** | Industrial gateway per site (fanless PC or ARM box, battery/UPS backed) | No LLM. Deterministic rules plus small anomaly/ML models | Live telemetry, 7–30 day ring buffer, alarm log, asset nameplate | Live equipment state |
-| **T1 Field** | Rugged tablet/laptop in truck | Small local LLM (via llama.cpp / Ollama class runtime) | Mission packs, truck inventory, offline outbox | Truck stock, on-site observations |
+| **T1 Field** | Rugged tablet/laptop in the service van | Small local LLM (via llama.cpp / Ollama class runtime) | Mission packs, van inventory, offline outbox | Van stock, on-site observations |
 | **T2 Hub** | Server at each regional depot/workshop | Mid-size local LLM | Regional mirror of manuals, history, roster snapshot, depot stock | Depot/workshop stock and bay schedule |
 | **T3 Cloud** | Cloud | Claude orchestrator (e.g. `claude-opus-5-5` for planning, `claude-haiku-5-5` for high-volume triage) | Everything: CMMS, ERP, full KB, fleet analytics | Work orders, assignments, reservations, purchase orders |
 
@@ -132,7 +132,7 @@ This keeps agents simple: they call `check_parts` and the router decides where t
 | **Orchestrator** | Cloud (fallback: hub) | Owns a work order end to end. Plans W1–W6, calls specialists, asks the human for approvals. |
 | **Diagnosis agent** | Cloud / hub / field | Correlates telemetry, alarms, symptoms, manuals and similar past repairs, then ranks probable causes and gives a safety verdict. |
 | **Dispatch agent** | Cloud (fallback: hub rules) | Scores technicians on skills, certifications, distance/drive time, workload, SLA and overtime. |
-| **Logistics agent** | Cloud / hub | Decides repair location, checks parts across truck → depot → warehouse → vendor, and reserves them. |
+| **Logistics agent** | Cloud / hub | Decides repair location, checks parts across van → depot → warehouse → vendor, and reserves them. |
 | **Field assistant** | Field device | Talks with the technician at the asset: procedures, LOTO checklist, live readings, captures findings. Works fully offline. |
 | **Sync agent** (non-LLM service) | Every node | Mission-pack prefetch, outbox replay, conflict resolution. |
 
@@ -158,7 +158,7 @@ sequenceDiagram
   ORCH->>DX: diagnose_issue(asset, telemetry_window)
   DX-->>ORCH: Top causes, severity, safe-to-run?
   ORCH->>LG: recommend_repair_location + check_parts
-  LG-->>ORCH: On-site, parts at depot B (2 of 3 on truck 14)
+  LG-->>ORCH: On-site, parts at depot B (2 of 3 already in van 14)
   ORCH->>DS: find_technicians(skills, urgency)
   DS-->>ORCH: Ranked candidates
   ORCH->>H: Proposed plan (tech, location, parts) for approval
@@ -195,10 +195,10 @@ A transparent scoring rule (explainable, works at every tier). The cloud can ref
 | Parts staging | Parts can reach site | Parts are at workshop |
 
 **W4 Parts availability**
-- Search order: **truck → nearby trucks → depot → central warehouse → vendor**.
+- Search order: **van → nearby vans → depot → central warehouse → vendor**.
 - *Full:* Live ERP plus a **hard reservation** with an expiry.
 - *Degraded:* Hub knows depot stock live and other stock from a snapshot. It makes a **soft reservation**.
-- *Offline:* Truck stock only. Consumed parts are logged to the outbox and reconciled on sync.
+- *Offline:* Van stock only. Consumed parts are logged to the outbox and reconciled on sync.
 - *Conflict rule:* The cloud is authoritative. If two offline soft reservations collide, the earlier work order with higher priority wins, and the loser gets an alternative-source proposal.
 
 **W5 Execution support**
@@ -249,7 +249,7 @@ M6 (lost sensors or edge gateway) can happen **in any of these modes**. It is a 
 | **M2 Intermittent** | Repeated drops | Local first, cloud second opinion when the link blips | Cloud if reachable inside the deadline, else hub snapshot (provisional) | Rule score locally | Soft reserve, confirmed on sync | Local | Outbox, replay on reconnect |
 | **M3 Cloud agents down** (LLM API outage, quota, region issue) | LLM health checks fail, data APIs OK | **Hub/field model** reasoning over live cloud data via MCP | Deterministic optimizer (no LLM needed) | Rule score | Live ERP (data still up) | Local | Real-time sync |
 | **M4 Hub-only island** (WAN down, depot LAN up) | Cloud unreachable, hub reachable | Hub model + regional KB | Hub snapshot + rules (provisional) | Rule score | Depot live, others from snapshot | Local | Queued at hub |
-| **M5 Fully offline** (remote site, PSPS) | No uplink | Edge rules + field model + mission pack | "Self", or human calls dispatch | Rule score; technician decides | **Truck stock only** | Fully local | Outbox on device |
+| **M5 Fully offline** (remote site, PSPS) | No uplink | Edge rules + field model + mission pack | "Self", or human calls dispatch | Rule score; technician decides | **Van stock only** | Fully local | Outbox on device |
 | **M6 Equipment data lost** (sensor/gateway down) | Telemetry stale | Symptom-driven: guided inspection Q&A, history of similar faults | Unchanged | Bias toward on-site inspection first | Unchanged | Manual readings captured on device | Flag the sensor fault as its own WO |
 
 ### 5.2 Guaranteed minimum capability (the "floor")
@@ -258,7 +258,7 @@ Even in **M5 + M6** (no network, no sensors), a technician standing at the asset
 
 - Open the asset's manuals, procedures, LOTO checklist and past repairs (mission pack).
 - Get guided diagnosis from the on-device model over that pack.
-- See and decrement truck stock.
+- See and decrement van stock.
 - Record findings, parts used and photos, which sync later with no data loss.
 
 ---
@@ -299,7 +299,7 @@ When a WO is assigned, or nightly for each technician's territory, the sync agen
 - **Ownership rules** instead of generic merges:
   - Cloud owns: WO assignment, reservations, purchase orders.
   - Edge owns: telemetry and alarms.
-  - Device owns: on-site observations, parts consumed from truck.
+  - Device owns: on-site observations, parts consumed from van.
 - Offline decisions are stored as **proposals** (`provisional: true`). The cloud confirms them or returns a counter-proposal, and the technician is notified.
 - Append-only data (findings, readings, photos) never conflicts.
 
@@ -368,10 +368,12 @@ Mean time to diagnose, first-time fix rate, technician drive time per WO, parts-
 |---|----------|----------|----------------------|
 | 1 | CMMS / ERP in use | **Keep it simple: our own MCP servers are the system of record.** | No adapters to commercial CMMS/ERP. `workorders`, `parts` and `dispatch` MCP servers store their data in local JSON/SQLite seeded from the fleet simulator. An adapter can replace a backend later without changing the tool contracts. |
 | 2 | Equipment classes, protocols, gateways | **Read telemetry from files for the demo.** | The edge `telemetry` MCP server replays per-asset JSONL files exported by the simulator (`hybrid-ai-sim telemetry-files`). OPC-UA/Modbus/MQTT are out of scope for now. The file reader sits behind the same `get_live_telemetry` contract. |
-| 3 | Fleet size | **Under 50** assets, sites and technicians. | Simulator defaults: 6 depots, 12 sites, about 30 assets and 12 technicians. Everything fits in memory, and a single SQLite file per tier is enough. |
+| 3 | Fleet size | **Under 50** assets, sites and technicians. | Simulator defaults: 6 depots, 12 sites, about 30 compressors and 12 technicians. Everything fits in memory, and a single SQLite file per tier is enough. |
 | 4 | Regional depot/workshop network | **Yes, it exists.** | Tier 2 hub is **in scope**: every depot runs a hub and mode M4 is a first-class mode. Four depots also have a workshop for W3. |
 | 5 | Approval rules | **Rule-based.** | Approvals come from a declarative rules file (below), checked by a deterministic `approvals` component, not an LLM. Agents propose; rules decide auto-approve vs human approval. |
 | 6 | Data residency / contract limits | **None.** | All telemetry summaries may go to the cloud. Only the bandwidth classes in §6.3 limit what gets sent. |
+| 7 | Equipment classes | **Industrial compressors only.** | Five fictional types in the simulator: rotary screw, two-stage reciprocating, centrifugal (4.16 kV motor), portable diesel and oil-free scroll. Each has its own sensors, failure modes and parts. |
+| 8 | Where repair recommendations live | **A repair recommendations database.** | Each work order's plan (ranked causes, ordered steps, parts, manual and past-repair references) is stored in SQLite behind the work-orders MCP server. The assigned technician works through the steps; a copy travels in the mission pack, and step updates made offline replay once via idempotency keys. |
 
 ### 11.1 Approval rules (initial)
 
@@ -383,7 +385,7 @@ Rules live in `config/approvals.json` (phase 2). The first matching rule wins. T
 | Shutdown / stop unit | Anything else | Requires **site operator** approval |
 | Dispatch technician | Urgency `routine`/`soon`, skills fully matched, technician on shift | **Auto-approved** |
 | Dispatch technician | Urgency `urgent`/`emergency`, or missing skills, or overtime | Requires **planner** approval |
-| Reserve parts | Truck or depot stock, total < $1,000 | **Auto-approved** |
+| Reserve parts | Van or depot stock, total < $1,000 | **Auto-approved** |
 | Reserve / order parts | Total ≥ $1,000, or vendor order | Requires **regional manager** approval |
 | Send to workshop | Any | Requires **planner** approval |
 | Any action while offline (not authoritative) | Would otherwise be auto-approved | **Auto-approved as provisional**, confirmed on sync |

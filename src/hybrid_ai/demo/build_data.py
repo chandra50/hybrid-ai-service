@@ -116,8 +116,8 @@ def parts_plan(fleet: Fleet, fm: cat.FailureMode, site, tech) -> dict[str, Any]:
         total += price * qty
         srcs = []
         if tech:
-            srcs.append({"source_type": "truck", "source_id": tech.truck_id,
-                         "qty": fleet.stock.get(tech.truck_id, {}).get(pn, 0), "eta_hours": 0})
+            srcs.append({"source_type": "van", "source_id": tech.van_id,
+                         "qty": fleet.stock.get(tech.van_id, {}).get(pn, 0), "eta_hours": 0})
         srcs.append({"source_type": "depot", "source_id": depot.depot_id, "qty": fleet.stock[depot.depot_id].get(pn, 0),
                      "eta_hours": round(drive(depot.location, site.location)[1] / 60, 1)})
         srcs.append({"source_type": "warehouse", "source_id": fleet.warehouse["warehouse_id"],
@@ -125,7 +125,7 @@ def parts_plan(fleet: Fleet, fm: cat.FailureMode, site, tech) -> dict[str, Any]:
                      "eta_hours": round(drive(wh, site.location)[1] / 60 + 2, 1)})
         srcs.append({"source_type": "vendor", "source_id": "VENDOR", "qty": 99, "eta_hours": 72})
         pick = next(s for s in srcs if s["qty"] >= qty)
-        if pick["source_type"] not in ("truck", "depot"):
+        if pick["source_type"] not in ("van", "depot"):
             all_local = False
         lines.append({"part_number": pn, "description": cat.all_parts()[pn], "qty": qty, "unit_price": price,
                       "sources": srcs, "pick": pick["source_id"], "pick_type": pick["source_type"]})
@@ -145,7 +145,7 @@ def approvals(diag, urgency, best, loc, parts) -> list[dict[str, Any]]:
         why = "Urgent/emergency" if urgency in ("urgent", "emergency") else "Missing skills or off shift"
         out.append({"action": "Dispatch", "rule": why, "outcome": "human", "approver": "Planner"})
     if parts["all_local"] and parts["total_usd"] < 1000:
-        out.append({"action": "Parts", "rule": "Truck or depot stock, under $1,000", "outcome": "auto", "approver": "Auto"})
+        out.append({"action": "Parts", "rule": "Van or depot stock, under $1,000", "outcome": "auto", "approver": "Auto"})
     else:
         why = "Vendor or warehouse order" if not parts["all_local"] else "$1,000 or more"
         out.append({"action": "Parts", "rule": why, "outcome": "human", "approver": "Regional manager"})
@@ -206,7 +206,7 @@ def build(seed: int = 42) -> dict[str, Any]:
         appr = approvals(diag, wo["priority"], best, loc, parts)
         needs_human = any(x["outcome"] == "human" for x in appr)
         wo.update({
-            "title": f"{asset.category.capitalize()} at {site.name}",
+            "title": f"{asset.category[0].upper() + asset.category[1:]} at {site.name}",
             "status": "assigned" if not needs_human else "awaiting_approval",
             "assigned_technician_id": best["technician_id"] if not needs_human else None,
             "diagnosis": diag, "skills_required": list(fm.skills), "est_hours": fm.est_hours,
@@ -233,11 +233,11 @@ def build(seed: int = 42) -> dict[str, Any]:
                 a["outcome"], a["approver"] = "approved", a["approver"] + " (approved)"
 
     techs_out = [{
-        "technician_id": t.technician_id, "name": t.name, "home_depot": t.home_depot, "truck_id": t.truck_id,
+        "technician_id": t.technician_id, "name": t.name, "home_depot": t.home_depot, "van_id": t.van_id,
         "skills": t.skills, "on_shift": t.on_shift, "open_jobs": t.open_jobs,
         "lat": t.location.lat, "lon": t.location.lon,
-        "truck_stock": [{"part_number": p, "description": cat.all_parts()[p], "qty": q}
-                        for p, q in sorted(fleet.stock.get(t.truck_id, {}).items())],
+        "van_stock": [{"part_number": p, "description": cat.all_parts()[p], "qty": q}
+                        for p, q in sorted(fleet.stock.get(t.van_id, {}).items())],
     } for t in fleet.technicians]
 
     manuals = {}

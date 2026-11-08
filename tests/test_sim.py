@@ -49,16 +49,15 @@ class FleetGeneration(unittest.TestCase):
         for loc, items in FLEET.stock.items():
             self.assertTrue(set(items) <= set(parts), loc)
 
-    def test_every_truck_and_depot_has_stock_entry(self):
+    def test_every_van_and_depot_has_stock_entry(self):
         for t in FLEET.technicians:
-            self.assertIn(t.truck_id, FLEET.stock)
+            self.assertIn(t.van_id, FLEET.stock)
         for d in FLEET.depots:
             self.assertIn(d.depot_id, FLEET.stock)
 
-    def test_wind_turbines_only_in_windy_regions(self):
-        for a in FLEET.assets:
-            if a.model == "WTG-GBX-2M":
-                self.assertIn(FLEET.site(a.site_id).region, {"Mojave", "Northern", "Kern"})
+    def test_fleet_is_all_compressors(self):
+        self.assertTrue(all(a.model.startswith("CMP-") and "compressor" in a.category for a in FLEET.assets))
+        self.assertGreaterEqual(len({a.model for a in FLEET.assets}), 3)
 
     def test_hv_certified_techs_are_electricians(self):
         for t in FLEET.technicians:
@@ -144,10 +143,13 @@ class Telemetry(unittest.TestCase):
             only = read_telemetry_file(paths[0], at, window_min=5, signals=[from_file["series"][0]["signal"]])
             self.assertEqual(len(only["series"]), 1)
 
-    def test_bushing_crack_detectable(self):
-        model, fm = cat.failure_mode("XFM-BUSH-CRACK")
-        gas = next(s for s in model.signals if s.name == "dissolved_gas_ppm")
-        self.assertGreater(gas.baseline * (1 + fm.effects["dissolved_gas_ppm"]), gas.warn)
+    def test_motor_insulation_fault_detectable(self):
+        model, fm = cat.failure_mode("CEN-MTR-INS")
+        cur = next(s for s in model.signals if s.name == "motor_current")
+        self.assertGreater(cur.baseline * (1 + fm.effects["motor_current"]), cur.warn)
+
+    def test_every_part_has_a_price(self):
+        self.assertEqual(set(cat.PART_PRICES), set(cat.all_parts()))
 
 
 class Network(unittest.TestCase):

@@ -17,8 +17,9 @@
       </div>
     </div>
     <div class="persona" role="tablist" aria-label="Persona">
-      <button role="tab" id="tab-supervisor" class="persona-btn active" data-persona="supervisor">Supervisor</button>
-      <button role="tab" id="tab-technician" class="persona-btn" data-persona="technician">Technician</button>
+      <button role="tab" class="persona-btn active" data-persona="supervisor">Supervisor</button>
+      <button role="tab" class="persona-btn" data-persona="technician">Technician</button>
+      <button role="tab" class="persona-btn" data-persona="walkthrough">Assigned tech walkthrough</button>
     </div>
   </header>
 
@@ -42,17 +43,45 @@
   <main class="layout">
     <section class="map-wrap">
       <div id="kpis" class="kpis"></div>
-      <div id="map" aria-label="Map of assets, depots and technicians"></div>
-      <div class="legend">
-        <span><i class="dot healthy"></i>Healthy</span>
-        <span><i class="dot warning"></i>Warning</span>
-        <span><i class="dot fault"></i>Fault</span>
-        <span><i class="sq"></i>Depot hub</span>
-        <span><i class="tech"></i>Technician</span>
+      <div class="map-box">
+        <div id="map" aria-label="Map of assets, depots and technicians"></div>
+        <div class="legend">
+          <span><i class="dot healthy"></i>Healthy</span>
+          <span><i class="dot warning"></i>Warning</span>
+          <span><i class="dot fault"></i>Fault</span>
+          <span><i class="sq"></i>Depot hub</span>
+          <span><i class="tech"></i>Technician</span>
+        </div>
       </div>
     </section>
     <aside id="panel" class="panel"></aside>
   </main>
+
+  <section id="live" class="live" aria-label="Live requests">
+    <div class="live-head">
+      <button id="live-toggle" class="live-title" aria-expanded="true"><span class="pulse" aria-hidden="true"></span>Live requests</button>
+      <div id="live-totals" class="live-totals"></div>
+      <button id="live-clear" class="btn small ghost">Clear</button>
+    </div>
+    <div class="live-cols" aria-hidden="true">
+      <span>When</span><span>From</span><span>Request</span><span>Tool</span><span>Ran on</span><span>Why there</span><span class="r">Time</span><span class="r">Tokens</span>
+    </div>
+    <div id="live-rows" class="live-rows"></div>
+  </section>
+
+  <button id="ask-fab" class="ask-fab" aria-label="Open assistant"><span class="brand-mark small" aria-hidden="true"></span>Ask</button>
+  <section id="assistant" class="assistant" hidden aria-label="Assistant">
+    <div class="as-head">
+      <div><b>Assistant</b><div id="as-context" class="sub"></div></div>
+      <button id="as-close" class="as-x" aria-label="Close assistant">×</button>
+    </div>
+    <div id="as-msgs" class="as-msgs"></div>
+    <div id="as-chips" class="as-chips"></div>
+    <form id="as-form" class="as-form">
+      <input id="as-input" type="text" placeholder="Ask about this job…" autocomplete="off" aria-label="Ask the assistant">
+      <button class="btn small" type="submit">Send</button>
+    </form>
+  </section>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="data.js"></script>

@@ -165,7 +165,7 @@
       }
     },
     "check_parts": {
-      "description": "Find part availability, searching truck -> nearby trucks -> depot -> warehouse -> vendor.",
+      "description": "Find part availability, searching van -> nearby vans -> depot -> warehouse -> vendor.",
       "input": {
         "type": "object",
         "properties": {
@@ -195,7 +195,7 @@
                     "type": "object",
                     "required": ["source_type", "source_id", "qty"],
                     "properties": {
-                      "source_type": { "enum": ["truck", "depot", "warehouse", "vendor"] },
+                      "source_type": { "enum": ["van", "depot", "warehouse", "vendor"] },
                       "source_id": { "type": "string" },
                       "qty": { "type": "integer", "minimum": 0 },
                       "eta_hours": { "type": "number", "minimum": 0 }

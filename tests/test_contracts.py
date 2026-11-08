@@ -42,8 +42,8 @@ class InputValidation(unittest.TestCase):
     def test_check_parts_needs_parts_or_cause(self):
         with self.assertRaises(c.ContractError):
             c.validate_input("check_parts", {"technician_id": "TEC-0001"})
-        c.validate_input("check_parts", {"cause_code": "PMP-BRG-WEAR"})
-        c.validate_input("check_parts", {"part_numbers": ["P-PMP-0101"], "near": {"lat": 36.7, "lon": -119.8}})
+        c.validate_input("check_parts", {"cause_code": "SCR-OIL-FILT"})
+        c.validate_input("check_parts", {"part_numbers": ["P-SCR-0201"], "near": {"lat": 36.7, "lon": -119.8}})
 
     def test_writes_require_idempotency_key(self):
         with self.assertRaises(c.ContractError):
@@ -61,7 +61,7 @@ class InputValidation(unittest.TestCase):
 class Envelope(unittest.TestCase):
     DIAG = {
         "asset_id": "AST-00004",
-        "causes": [{"cause_code": "XFM-BUSH-CRACK", "description": "Cracked HV bushing", "probability": 0.8}],
+        "causes": [{"cause_code": "CEN-MTR-INS", "description": "MV motor insulation breakdown", "probability": 0.8}],
         "severity": "critical",
         "safe_to_run": False,
         "safety_override": True,

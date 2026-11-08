@@ -64,7 +64,7 @@ class Technician:
     technician_id: str
     name: str
     home_depot: str
-    truck_id: str
+    van_id: str
     skills: list[str]
     on_shift: bool
     open_jobs: int
@@ -113,7 +113,7 @@ class Fleet:
     sites: list[Site]
     assets: list[Asset]
     technicians: list[Technician]
-    stock: dict[str, dict[str, int]]  # location_id (depot/truck/warehouse) -> part -> qty
+    stock: dict[str, dict[str, int]]  # location_id (depot/van/warehouse) -> part -> qty
     repair_history: list[RepairRecord]
     manuals: list[ManualSection]
     work_orders: list[WorkOrderRec]
@@ -201,11 +201,10 @@ def generate_fleet(
                 access_notes=f"Gate code on file; contact site operator {rng.randint(100, 999)}-{rng.randint(1000, 9999)}",
             ))
 
-    # Assets. Wind turbines only in windy regions.
-    windy = {"Mojave", "Northern", "Kern"}
+    # Assets: a fleet of industrial compressors.
     assets: list[Asset] = []
     for s in sites:
-        choices = [m for m in cat.MODELS if m.model != "WTG-GBX-2M" or s.region in windy]
+        choices = list(cat.MODELS)
         for _ in range(rng.randint(*assets_per_site)):
             m = rng.choice(choices)
             n = len(assets) + 1
@@ -232,14 +231,14 @@ def generate_fleet(
                 technician_id=f"TEC-{n:04d}",
                 name=f"{rng.choice(cat.FIRST_NAMES)} {rng.choice(cat.LAST_NAMES)}",
                 home_depot=d.depot_id,
-                truck_id=f"TRK-{n:02d}",
+                van_id=f"VAN-{n:02d}",
                 skills=sorted(set(base + extra)),
                 on_shift=rng.random() < 0.8,
                 open_jobs=rng.randint(0, 3),
                 location=_clamp_ca(d.location.lat + rng.gauss(0, 0.3), d.location.lon + rng.gauss(0, 0.3)),
             ))
 
-    # Stock: warehouse deep, depots medium, trucks carry common consumables.
+    # Stock: warehouse deep, depots medium, vans carry common consumables.
     parts = cat.all_parts()
     stock: dict[str, dict[str, int]] = {wh_id: {p: rng.randint(4, 20) for p in parts}}
     region_models: dict[str, set[str]] = {}
@@ -247,16 +246,13 @@ def generate_fleet(
         region_models.setdefault(next(s.depot_id for s in sites if s.site_id == a.site_id), set()).add(a.model)
     for d in depots:
         models = region_models.get(d.depot_id, set())
-        stock[d.depot_id] = {
-            p: rng.randint(0, 5)
-            for p in parts
-            if p.split("-")[1] in {m.split("-")[0] for m in models}
-        }
+        model_parts = {p for m in models for p in cat.MODELS_BY_NAME[m].parts}
+        stock[d.depot_id] = {p: rng.randint(0, 5) for p in parts if p in model_parts}
     for t in techs:
         models = region_models.get(t.home_depot, set())
-        prefixes = {m.split("-")[0] for m in models}
-        candidates = [p for p in parts if p.split("-")[1] in prefixes]
-        stock[t.truck_id] = {p: rng.randint(1, 2) for p in rng.sample(candidates, k=min(len(candidates), 4))}
+        model_parts = {p for m in models for p in cat.MODELS_BY_NAME[m].parts}
+        candidates = [p for p in parts if p in model_parts]
+        stock[t.van_id] = {p: rng.randint(1, 2) for p in rng.sample(candidates, k=min(len(candidates), 4))}
 
     # Repair history.
     history: list[RepairRecord] = []
@@ -284,7 +280,7 @@ def generate_fleet(
                 labor_hours=round(fm.est_hours * rng.uniform(0.7, 1.6), 1),
                 first_time_fix=ftf,
                 notes=(f"{fm.description}. Symptoms: {', '.join(rng.sample(fm.symptoms, k=min(2, len(fm.symptoms))))}. "
-                       + ("Resolved on first visit." if ftf else "Return visit needed - part not on truck.")),
+                       + ("Resolved on first visit." if ftf else "Return visit needed - part not in the van.")),
             ))
     history.sort(key=lambda r: r.date)
 
