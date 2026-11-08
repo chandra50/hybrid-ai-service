@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>hybrid-ai Field Ops</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <div>
+        <div class="brand-name">hybrid-ai Field Ops</div>
+        <div class="brand-sub">California fleet · demo data · <span id="sim-clock"></span></div>
+      </div>
+    </div>
+    <div class="persona" role="tablist" aria-label="Persona">
+      <button role="tab" id="tab-supervisor" class="persona-btn active" data-persona="supervisor">Supervisor</button>
+      <button role="tab" id="tab-technician" class="persona-btn" data-persona="technician">Technician</button>
+    </div>
+  </header>
+
+  <section class="modebar" aria-label="Network mode">
+    <div class="modebar-group">
+      <span class="modebar-label">Network mode</span>
+      <div id="mode-chips" class="mode-chips"></div>
+      <label class="m6-toggle"><input type="checkbox" id="m6"> <span class="chip-m6">M6</span> Sensors lost</label>
+    </div>
+    <div class="modebar-group scenario">
+      <span class="modebar-label">Scenario</span>
+      <select id="scenario-select" aria-label="Scenario"></select>
+      <button id="scenario-play" class="btn small">Play</button>
+      <div id="scenario-bar" class="scenario-bar" aria-hidden="true"></div>
+      <span id="scenario-note" class="scenario-note"></span>
+    </div>
+  </section>
+
+  <div id="mode-banner" class="mode-banner"></div>
+
+  <main class="layout">
+    <section class="map-wrap">
+      <div id="kpis" class="kpis"></div>
+      <div id="map" aria-label="Map of assets, depots and technicians"></div>
+      <div class="legend">
+        <span><i class="dot healthy"></i>Healthy</span>
+        <span><i class="dot warning"></i>Warning</span>
+        <span><i class="dot fault"></i>Fault</span>
+        <span><i class="sq"></i>Depot hub</span>
+        <span><i class="tech"></i>Technician</span>
+      </div>
+    </section>
+    <aside id="panel" class="panel"></aside>
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

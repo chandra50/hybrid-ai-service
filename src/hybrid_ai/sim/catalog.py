@@ -374,3 +374,12 @@ def all_parts() -> dict[str, str]:
     for m in MODELS:
         out.update(m.parts)
     return out
+
+# Unit prices (USD) for approval rules. Fictional.
+PART_PRICES = {
+    "P-PMP-0101": 420, "P-PMP-0102": 780, "P-PMP-0103": 2350, "P-PMP-0104": 95, "P-PMP-0105": 260,
+    "P-CMP-0201": 85, "P-CMP-0202": 6400, "P-CMP-0203": 690, "P-CMP-0204": 310,
+    "P-GEN-0301": 540, "P-GEN-0302": 160, "P-GEN-0303": 1150, "P-GEN-0304": 120,
+    "P-XFM-0401": 1300, "P-XFM-0402": 2900, "P-XFM-0403": 1750,
+    "P-WTG-0501": 5200, "P-WTG-0502": 3800, "P-WTG-0503": 2100, "P-WTG-0504": 1450,
+}

@@ -52,6 +52,28 @@ python3 -m hybrid_ai.sim scenario psps_outage --probe-every 3600
 
 Or install it as a package with `pip install -e .[dev]` and use the `hybrid-ai-sim` command.
 
+## Demo dashboard
+
+A web dashboard with two personas, built on OpenStreetMap (Leaflet):
+
+- **Supervisor:** fleet map, KPIs, the work-order queue, and each order's agent plan (W1 diagnosis, W2 technician ranking, W3 repair location, W4 parts) with rule-based approvals. Every answer is labeled with the tier that answered, its confidence and its age.
+- **Technician:** my job, route on the map, guided diagnosis, LOTO checklist, mission pack (manuals and past repairs), parts vs truck stock, live data over the local link, close-out, and an outbox.
+- **Hybrid modes:** switch M0–M5 and the M6 overlay by hand, or play a simulator scenario (remote site visit, wildfire shutoff, cloud AI outage...). Labels, data freshness and outbox sync change with the mode. Something recorded offline as the technician stays invisible to the supervisor until the link returns.
+
+```bash
+PYTHONPATH=src python3 -m hybrid_ai.demo.build_data
+```
+
+```bash
+python3 -m http.server 8765 --directory dashboard
+```
+
+Then open http://localhost:8765. Map tiles need an internet connection; everything else runs locally.
+
+## Slide deck
+
+[docs/hybrid-ai-design.pptx](docs/hybrid-ai-design.pptx) is a 21-slide overview of the design, including how each hybrid mode is handled. Rebuild it with `pip install python-pptx` and `python tools/build_deck.py`.
+
 ## Next: phase 2
 
 A cloud-tier MVP in mode M0. Our own MCP servers (the system of record for the demo,

@@ -12,6 +12,7 @@ dependencies = ["jsonschema>=4.10"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
+docs = ["python-pptx>=1.0"]
 
 [project.scripts]
 hybrid-ai-sim = "hybrid_ai.sim.__main__:main"
