@@ -55,6 +55,8 @@ Or install it as a package with `pip install -e .[dev]` and use the `hybrid-ai-s
 
 ## Demo dashboard
 
+Presenting? Follow the 5-minute run sheet in [docs/DEMO.md](docs/DEMO.md).
+
 A web dashboard on OpenStreetMap (Leaflet) with three personas:
 
 - **Supervisor:** fleet map, KPIs, the work-order queue, and each order's agent plan (W1 diagnosis, W2 technician ranking, W3 repair location, W4 parts) with rule-based approvals. Every answer shows which tier answered, its confidence and its age.
