@@ -1,0 +1,25 @@
+[Unit]
+Description=hybrid-ai simulated dashboard + repair recommendations API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hybridai
+Group=hybridai
+WorkingDirectory=/opt/hybrid-ai
+Environment=PYTHONPATH=/opt/hybrid-ai/src
+Environment=HYBRID_BIND=127.0.0.1
+EnvironmentFile=-/etc/default/hybrid-ai
+ExecStart=/opt/hybrid-ai/.venv/bin/python -m hybrid_ai.demo.server --port 8765 --reset
+Restart=on-failure
+RestartSec=3
+KillSignal=SIGINT
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/hybrid-ai/data
+
+[Install]
+WantedBy=multi-user.target

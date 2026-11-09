@@ -1,0 +1,27 @@
+[Unit]
+Description=hybrid-ai live demo: cloud, edge, device and network simulator
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hybridai
+Group=hybridai
+WorkingDirectory=/opt/hybrid-ai
+Environment=PYTHONPATH=/opt/hybrid-ai/src
+Environment=HYBRID_BIND=127.0.0.1
+EnvironmentFile=-/etc/default/hybrid-ai
+ExecStart=/opt/hybrid-ai/.venv/bin/python -m hybrid_ai.live
+Restart=on-failure
+RestartSec=3
+KillSignal=SIGINT
+TimeoutStopSec=20
+# hardening: the app only needs to write under /opt/hybrid-ai/data
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/hybrid-ai/data
+
+[Install]
+WantedBy=multi-user.target

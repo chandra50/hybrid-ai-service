@@ -207,6 +207,10 @@ The services bind to localhost only, restart on failure and start when you log i
 
 ---
 
+### 6.1 Ubuntu server
+
+`tools/make_release.sh` builds `dist/hybrid-ai-<date>-<commit>.tar.gz` from the latest commit. On the server, `sudo ./deploy/server/install.sh` installs into `/opt/hybrid-ai` as system services running as a `hybridai` user, with systemd hardening (read-only system, writable `data/` only). The web pages listen on `HYBRID_BIND` (default 127.0.0.1, set in `/etc/default/hybrid-ai`); internal ports always stay on localhost. Step by step: [DEPLOY.md](../DEPLOY.md).
+
 ## 7. Repository map
 
 ```

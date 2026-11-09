@@ -30,7 +30,8 @@ PORT = {
     "cloud": BASE + 1, "edge": BASE + 2, "device": BASE + 3,
     "netsim": BASE + 10, "device-cloud": BASE + 11, "device-edge": BASE + 12, "edge-cloud": BASE + 13,
 }
-HOST = "127.0.0.1"
+HOST = "127.0.0.1"   # internal traffic between the places always stays on localhost
+BIND = os.environ.get("HYBRID_BIND", "127.0.0.1")   # address the device web page listens on
 
 for _name in ("httpx", "httpx2", "mcp", "mcp.client", "mcp.server"):
     logging.getLogger(_name).setLevel(logging.WARNING)

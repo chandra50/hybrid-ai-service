@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import threading
 from functools import partial
@@ -96,6 +97,8 @@ class Handler(SimpleHTTPRequestHandler):
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--port", type=int, default=8765)
+    ap.add_argument("--host", default=os.environ.get("HYBRID_BIND", "127.0.0.1"),
+                    help="address to listen on (default 127.0.0.1; set HYBRID_BIND or --host 0.0.0.0 to expose it)")
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--db", default=str(ROOT / "data" / "repair_recommendations.db"))
     ap.add_argument("--reset", action="store_true", help="rebuild the database from the simulator")
@@ -109,8 +112,8 @@ def main(argv: list[str] | None = None) -> None:
         n = repair_db.populate(conn, build(args.seed))
         print(f"built {db} with {n} repair recommendations")
     Handler.conn = conn
-    srv = ThreadingHTTPServer(("127.0.0.1", args.port), partial(Handler, directory=str(ROOT / "dashboard")))
-    print(f"serving dashboard + API on http://127.0.0.1:{args.port}")
+    srv = ThreadingHTTPServer((args.host, args.port), partial(Handler, directory=str(ROOT / "dashboard")))
+    print(f"serving dashboard + API on http://{args.host}:{args.port}", flush=True)
     srv.serve_forever()
 
 

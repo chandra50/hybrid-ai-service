@@ -34,7 +34,7 @@ from starlette.responses import JSONResponse, RedirectResponse
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
-from .common import DATA_DIR, HOST, PORT, ROOT, assigned_job, demo_data, now_iso, rank, url
+from .common import BIND, DATA_DIR, HOST, PORT, ROOT, assigned_job, demo_data, now_iso, rank, url
 
 DEADLINE = {"cloud": 3.0, "edge": 2.0}
 POLICY = {  # tool -> mode -> places in order
@@ -329,9 +329,9 @@ def make_app() -> Starlette:
 
 async def serve() -> None:
     DEV.open()
-    server = uvicorn.Server(uvicorn.Config(make_app(), host=HOST, port=PORT["device"], log_level="warning"))
+    server = uvicorn.Server(uvicorn.Config(make_app(), host=BIND, port=PORT["device"], log_level="warning"))
     task = asyncio.create_task(DEV.monitor())
-    print(f"device: live page on http://{HOST}:{PORT['device']}/live.html", flush=True)
+    print(f"device: live page on http://{BIND}:{PORT['device']}/live.html", flush=True)
     try:
         await server.serve()
     finally:
