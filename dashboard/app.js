@@ -463,7 +463,18 @@
 
   // ------------------------------------------------------------------ map
   const map = L.map("map", { zoomControl: true }).setView([36.8, -119.4], 6);
-  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' }).addTo(map);
+  if (window.HYBRID_HOSTED) {
+    // Hosted pages can't load map tiles, so draw a simplified California outline instead.
+    const CA = [[-124.21, 41.99], [-120.0, 41.99], [-120.0, 39.0], [-114.63, 35.0], [-114.13, 34.27], [-114.72, 32.72], [-117.12, 32.53],
+      [-117.25, 32.75], [-117.47, 33.3], [-118.4, 33.75], [-118.52, 34.03], [-119.15, 34.1], [-120.0, 34.46], [-120.62, 34.57], [-120.64, 35.14],
+      [-121.3, 35.66], [-121.9, 36.31], [-121.96, 36.6], [-122.4, 37.2], [-122.51, 37.78], [-123.0, 38.0], [-123.73, 38.95], [-123.85, 39.8],
+      [-124.36, 40.26], [-124.11, 40.95], [-124.21, 41.99]];
+    L.geoJSON({ type: "Feature", geometry: { type: "Polygon", coordinates: [CA] } },
+      { style: { color: "#5b6b73", weight: 1.5, fillColor: "#e3ecee", fillOpacity: 1 }, interactive: false }).addTo(map);
+    map.attributionControl.addAttribution("Simplified state outline (map tiles aren't available in the hosted copy)");
+  } else {
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' }).addTo(map);
+  }
   const STATUS_COLOR = { healthy: "#2e8b57", warning: "#e0a100", fault: "#b83227" };
   const layers = { asset: L.layerGroup().addTo(map), depot: L.layerGroup().addTo(map), tech: L.layerGroup().addTo(map), route: L.layerGroup().addTo(map) };
   function assetPopup(a) {
@@ -1009,7 +1020,10 @@
 
   setInterval(() => syncTick(), 1500);
   scenarioUI();
-  (async () => { try { const r = await fetch("/api/health"); state.api = r.ok && (await r.json()).ok === true; } catch { state.api = false; } render(); })();
+  (async () => {   // the hosted copy has no repair DB API: use the embedded plans without asking
+    if (!window.HYBRID_HOSTED) { try { const r = await fetch("/api/health"); state.api = r.ok && (await r.json()).ok === true; } catch { state.api = false; } }
+    render();
+  })();
   setView("topo");
   selectWO(state.selectedWO);
 })();
