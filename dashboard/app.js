@@ -556,6 +556,7 @@
     $("#deck-full").setAttribute("aria-pressed", on);
   }
   $("#deck-full").addEventListener("click", () => deckFull(!$("#deck").classList.contains("full")));
+  $("#deck-open")?.addEventListener("click", () => { setView("presentation"); deckFull(true); });
   $("#deck-thumbs").addEventListener("click", (e) => { const b = e.target.closest("[data-slide]"); if (b) showSlide(+b.dataset.slide); });
   document.addEventListener("keydown", (e) => {
     if (state.view !== "presentation" || e.target.closest?.("input, textarea, select, [contenteditable]")) return;

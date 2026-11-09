@@ -33,6 +33,12 @@ class Handler(SimpleHTTPRequestHandler):
     conn = None
     lock = threading.Lock()
 
+    def end_headers(self):
+        # make browsers revalidate the dashboard files, so a rebuilt page shows up on reload
+        if not self.path.startswith("/api/"):
+            self.send_header("Cache-Control", "no-cache")
+        super().end_headers()
+
     def log_message(self, fmt, *args):  # quieter console
         if "/api/" in (args[0] if args else ""):
             super().log_message(fmt, *args)
