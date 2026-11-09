@@ -88,8 +88,29 @@ TOOLS = [
 ]
 
 
+try:  # optional: without the SDK the agent still answers, retrieval only
+    import anthropic as _anthropic
+except ImportError:
+    _anthropic = None
+
+
 class AgentUnavailable(RuntimeError):
     """Claude can't be used right now (no credentials, disabled, network or API error)."""
+
+
+def _unavailable(e: Exception) -> Exception:
+    """Map an SDK error to AgentUnavailable (most specific first); return other errors unchanged."""
+    if _anthropic is None or not isinstance(e, _anthropic.APIError):
+        return e
+    if isinstance(e, _anthropic.AuthenticationError):
+        return AgentUnavailable(f"Claude rejected the credentials: {e.message}")
+    if isinstance(e, _anthropic.APIConnectionError):
+        return AgentUnavailable(f"can't reach the Claude API: {e}")
+    if isinstance(e, _anthropic.RateLimitError):
+        return AgentUnavailable("Claude API rate limit reached")
+    if isinstance(e, _anthropic.APIStatusError):
+        return AgentUnavailable(f"Claude API error {e.status_code}: {e.message}")
+    return AgentUnavailable(f"Claude API error: {e}")
 
 
 def llm_configured() -> tuple[bool, str]:
@@ -149,9 +170,9 @@ class ManualAgent:
         if self.client is None:
             if not ok:
                 raise AgentUnavailable(why)
-            import anthropic
-            self.client = anthropic.Anthropic(timeout=120.0, max_retries=2)
-        import anthropic
+            if _anthropic is None:
+                raise AgentUnavailable("the Anthropic SDK isn't installed (pip install -r deploy/requirements.txt)")
+            self.client = _anthropic.Anthropic(timeout=120.0, max_retries=2)
 
         t0 = time.perf_counter()
         prompt = f"Work order {work_order_id}. " + (question.strip() or "What is wrong and how do I repair it?")
@@ -165,14 +186,8 @@ class ManualAgent:
                     output_config={"effort": "medium"},
                     betas=["server-side-fallback-2026-07-01"], fallbacks="default",
                 )
-            except anthropic.AuthenticationError as e:
-                raise AgentUnavailable(f"Claude rejected the credentials: {e.message}") from e
-            except anthropic.APIConnectionError as e:
-                raise AgentUnavailable(f"can't reach the Claude API: {e}") from e
-            except anthropic.RateLimitError as e:
-                raise AgentUnavailable("Claude API rate limit reached") from e
-            except anthropic.APIStatusError as e:
-                raise AgentUnavailable(f"Claude API error {e.status_code}: {e.message}") from e
+            except Exception as e:  # noqa: BLE001  SDK errors become AgentUnavailable; anything else propagates
+                raise _unavailable(e) from e
             u = response.usage
             usage["input_tokens"] += u.input_tokens or 0
             usage["output_tokens"] += u.output_tokens or 0
