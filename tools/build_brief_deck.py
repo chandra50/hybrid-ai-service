@@ -95,7 +95,7 @@ def build(out: Path, static_motion: bool = False) -> None:
             d.arrow(s, MX + 2.7, y + 1.37, MX + 2.7, y + 1.6, color=MUTED, width=1.5, dash=True, both=True)
     pts = [("A router picks where each request runs", "Cloud when Online, the edge model when the link is Limited or gone, the device when the edge is dark too."),
            ("Every answer is labeled", "Where it ran, why, how fresh it is, and what it cost in time and tokens."),
-           ("A trained model ranks the causes", "A 9 KB repair recommendation model runs in all three places, with no tokens; plans are stored in a database and copied to the device."),
+           ("A trained model and an AI agent", "A 9 KB model ranks causes in every place; a Claude agent searches the service manuals and writes cited repair steps (retrieval only when offline)."),
            ("Nothing is lost offline", "Updates queue in priority order and replay safely once, when the link returns.")]
     for i, (h, b) in enumerate(pts):
         y = 1.6 + i * 1.22

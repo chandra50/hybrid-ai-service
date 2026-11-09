@@ -487,6 +487,45 @@ def build(out: Path) -> None:
             ["Back online", "5 writes replayed to the cloud DB, once each", "270–370 ms each"]]
     d.table(s, MX, 3.95, [3.6, 5.0, 2.4], rows, row_h=0.48, size=13, header_size=13)
 
+    # The first AI agent ---------------------------------------------------
+    s = d.slide("The first AI agent: repair steps from the manuals",
+                notes="hybrid_ai.agents.manual_agent. Claude Opus 5.5 runs a tool-use loop over three tools and must cite "
+                      "the manual passage behind every step. In the cloud it needs an API key; the edge and the device "
+                      "answer retrieval only from their own manual copies, so the technician always gets a cited procedure.")
+    flow = [("Technician asks", "\"What's wrong and how do I fix it?\"", TINT, TEXT),
+            ("Claude Opus 5.5", "tool-use loop, effort medium", SLATE, WHITE),
+            ("Cited answer", "cause · lockout first · numbered steps [MAN-…] · parts · test-run checks", "DCEFE3", TEXT)]
+    fy = 1.6
+    for i, (h, b, fill, col) in enumerate(flow):
+        y = fy + i * 1.62
+        d.box(s, MX, y, 5.2, 1.2, fill=fill, color=col, anchor=MID,
+              paras=[{"text": h, "bold": True, "size": 17}, {"text": b, "size": 13}])
+        if i < 2:
+            d.arrow(s, MX + 2.6, y + 1.22, MX + 2.6, y + 1.6, color=MUTED, width=2)
+    tools = [("search_service_manual", "BM25 over 117 manual passages and repair notes"),
+             ("get_work_order", "symptoms, alarms, hazards, the model's ranked causes"),
+             ("get_repair_history", "past repairs on this compressor")]
+    for i, (t, desc) in enumerate(tools):
+        y = fy + 0.5 + i * 0.56
+        d.box(s, MX + 5.55, y, 2.15, 0.48, fill=TINT, paras=t, size=10, font=MONO, bold=True, anchor=MID, margin=0.08)
+        d.text(s, MX + 7.8, y, 4.3, 0.48, desc, size=12, color=MUTED, anchor=MID)
+    d.arrow(s, MX + 5.25, fy + 1.9, MX + 5.5, fy + 1.9, color=MUTED, width=1.5, both=True)
+    d.text(s, MX + 5.55, fy, 6.5, 0.4, "Tools the agent calls", size=13, bold=True)
+    rows = [["Place", "Who answers recommend_repair"],
+            ["Cloud", "The Claude agent (needs an API key; up to 120 s)"],
+            ["Edge", "Retrieval only, from its own copy of the manuals"],
+            ["Device", "Retrieval only, from the mission pack"]]
+    gt = d.table(s, MX + 5.55, 4.15, [1.4, 5.15], rows, row_h=0.46, size=13, header_size=13)
+    for r, place in enumerate(["Cloud", "Edge", "Device"], start=1):
+        cell = gt.table.cell(r, 0)
+        cell.fill.solid()
+        cell.fill.fore_color.rgb = rgb(TIER[place][0])
+        for run in cell.text_frame.paragraphs[0].runs:
+            run.font.color.rgb = rgb(TIER[place][1])
+    d.box(s, MX + 5.55, 6.15, 6.55, 0.62, fill="FDEEC2", size=13, anchor=MID,
+          paras=[{"runs": [("Grounding rules: ", {"bold": True}),
+                           ("cite a passage for every step · only retrieved part numbers · say when the manual doesn't cover it", {})]}])
+
     # 12 - Mode x workflow -----------------------------------------------
     s = d.slide("Each mode, each workflow", notes="What every workflow does in each mode, with the place that answers.")
     tbl = [["Workflow", "Online", "Limited", "Offline"],
@@ -650,15 +689,15 @@ def build(out: Path) -> None:
 
     # 21 - Close ----------------------------------------------------------
     s = d.slide("What's running today", dark=True, title_size=40, title_box=(0.8, 0.8, 11.5, 0.9), notes="Close with what exists and the next step.")
-    stats = [("4", "real processes in the live demo"), ("3", "modes, plus 2 events"), ("1", "trained model in all 3 places"), ("77", "tests passing")]
+    stats = [("4", "real processes in the live demo"), ("1", "AI agent: Claude + RAG over the manuals"), ("1", "trained model in all 3 places"), ("86", "tests passing")]
     sw4 = 11.7 / 4
     for i, (n, l) in enumerate(stats):
         x = 0.8 + i * sw4
         d.text(s, x, 2.0, sw4 - 0.3, 1.3, n, size=66, bold=True, color=AMBER)
         d.text(s, x, 3.3, sw4 - 0.3, 0.8, l, size=18, color=ON_DARK)
     d.text(s, 0.8, 4.6, 11.7, 0.5, "Next: real LLM agents on the same tools", size=24, bold=True, color=WHITE)
-    d.text(s, 0.8, 5.2, 11.7, 1.5, ["Running now: cloud and edge MCP servers, device router, outbox and replay (live demo, deployable)",
-                                    "Next: LLM agents for orchestration and answers, on the same MCP tools",
+    d.text(s, 0.8, 5.2, 11.7, 1.5, ["Running now: MCP servers, device router, outbox and replay, and the manual agent (Claude Opus 5.5 + RAG)",
+                                    "Next: more agents (orchestration, dispatch) on the same MCP tools",
                                     "Then: a pilot with real hardware: one depot, its edge gateways and tablets"],
            size=16, color=ON_DARK, bullet=True, space_after=6)
 
