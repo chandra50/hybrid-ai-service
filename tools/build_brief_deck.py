@@ -19,7 +19,7 @@ from build_deck import (AMBER, CW, EVENT, INK, MODE, MODE_NAME, MUTED, MX, ON_DA
 C, MID = PP_ALIGN.CENTER, MSO_ANCHOR.MIDDLE
 
 
-def build(out: Path) -> None:
+def build(out: Path, static_motion: bool = False) -> None:
     d = Deck()
 
     # 1 - Title -----------------------------------------------------------
@@ -105,7 +105,7 @@ def build(out: Path) -> None:
 
     # Animated: agents moving between device, edge and cloud (click through in Slide Show)
     from build_agent_motion import add_motion_slide
-    add_motion_slide(d)
+    add_motion_slide(d, static=static_motion)
 
     # 5 - Supervisor -----------------------------------------------------------
     s = d.slide("Supervisor's view: decide fast, see everything",
@@ -173,28 +173,11 @@ def build(out: Path) -> None:
     fills = [MODE["ONLINE"], MODE["LIMITED"], MODE["OFFLINE"], EVENT, EVENT]
     d.table(s, MX, 1.55, [2.3, 3.2, 3.1, 3.5], rows, row_h=0.8, first_col_fills=fills, size=14)
 
-    # 8 - Proof and next steps ----------------------------------------------------
-    s = d.slide("What the demo shows, and what's next", dark=True, title_size=36, title_box=(0.8, 0.7, 11.5, 0.9),
-                notes="Figures are from the live demo (real processes) and one dashboard walkthrough run; "
-                      "timings vary per run because the network flaps randomly in Limited mode.")
-    proof = [("4", "real processes: cloud, edge, device, network"), ("~50%", "of requests ran on the edge or device"),
-             ("5 / 5", "offline writes replayed exactly once"), ("0", "updates lost offline")]
-    pw = 11.7 / 4
-    for i, (n, l) in enumerate(proof):
-        x = 0.8 + i * pw
-        d.text(s, x, 1.9, pw - 0.3, 1.1, n, size=54, bold=True, color=AMBER)
-        d.text(s, x, 3.0, pw - 0.3, 0.8, l, size=17, color=ON_DARK)
-    d.text(s, 0.8, 4.35, 11.7, 0.5, "Next steps", size=22, bold=True, color=WHITE)
-    d.text(s, 0.8, 4.95, 11.7, 1.8,
-           ["Add LLM agents on the same MCP tools; the live demo already runs the rest",
-            "Pilot with one depot's technicians and a handful of compressors",
-            "Measure time to diagnose, first-time fix rate and return visits"],
-           size=17, color=ON_DARK, bullet=True, space_after=8)
-
     d.save(out)
 
 
 if __name__ == "__main__":
-    out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parents[1] / "docs" / "hybrid-ai-brief.pptx"
-    build(out)
+    args = [a for a in sys.argv[1:] if a != "--static"]
+    out = Path(args[0]) if args else Path(__file__).resolve().parents[1] / "docs" / "hybrid-ai-brief.pptx"
+    build(out, static_motion="--static" in sys.argv)   # --static: no animation (for PDF export)
     print(f"wrote {out}")

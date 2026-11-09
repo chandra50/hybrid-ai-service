@@ -158,8 +158,11 @@ def build_pptx(out: Path) -> None:
     d.save(out)
 
 
-def add_motion_slide(d) -> None:
-    """Append the animated slide to an existing Deck (used by the design and brief decks too)."""
+def add_motion_slide(d, static: bool = False) -> None:
+    """Append the animated slide to an existing Deck (used by the design and brief decks too).
+
+    static=True draws only the starting state (Online) with no animation, for PDF export.
+    """
     s = d.slide("Where agents run as the network changes",
                 notes="Click five times. 1 Online: orchestration, the repair-rec model, dispatch, logistics and the "
                       "assistant LLM run in the cloud; safety rules at the edge; the field assistant and sync on the "
@@ -237,8 +240,14 @@ def add_motion_slide(d) -> None:
         fill, col = (EVENT if st.get("event") else MODE[st["mode"]])
         banners.append(d.box(s, MX, 1.28, W - 2 * MX, 0.56, fill=fill, paras=st["banner"], size=17, bold=True, color=col,
                              anchor=MID, radius=0.3, margin=0.25))
-    d.text(s, MX, H - 0.5, 8, 0.3, "Click to step through the modes  ·  square chip = trained model, purple = LLM, dark = agent, grey = tool/service",
-           size=10, color=MUTED)
+    d.text(s, MX, H - 0.5, 10, 0.3, ("Starting state (Online). The PowerPoint version animates all five stages."
+                                     if static else "Click to step through the modes")
+           + "  ·  square chip = trained model, purple = LLM, dark = agent, grey = tool/service", size=10, color=MUTED)
+
+    if static:   # PDF: keep only the starting state, no hidden layers, no timing
+        for sh in [x for shapes in overlay.values() for x in shapes] + banners[1:]:
+            sh._element.getparent().remove(sh._element)
+        return
 
     # timing: one click per stage after the first
     t = Timing()
