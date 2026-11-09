@@ -343,7 +343,8 @@ The simulated dashboard shows the behavior; the **live demo** makes it actually 
 - **The device detects the mode itself** from health probes (success rate and round-trip time), then routes each call by the policy in §5.1, with deadlines and fallbacks.
 - **Offline writes go to a real SQLite outbox** and replay to the cloud's repair recommendations DB when the link returns, safety steps first. Idempotency keys make replays exactly-once.
 - **The edge stores and forwards** telemetry features to the cloud and buffers them while the WAN is down.
-- **Not yet real:** LLM calls (answers are templated, 0 tokens), physical separation, and industrial protocols (telemetry is replayed from files).
+- **One real AI agent:** the repair-recommendation agent (Claude Opus 5.5 with RAG over the service manuals) runs in the cloud when an API key is set; the edge and device answer retrieval only from their own manual copies. See TECHNICAL.md §2.8.
+- **Not yet real:** the other agents' LLM calls (their answers are templated), physical separation, and industrial protocols (telemetry is replayed from files).
 
 | Measured in one run | Result |
 |---|---|

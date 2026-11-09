@@ -5,6 +5,7 @@ After=network.target
 [Service]
 WorkingDirectory=%h/hybrid-ai
 Environment=PYTHONPATH=%h/hybrid-ai/src
+EnvironmentFile=-%h/.config/hybrid-ai/env
 ExecStart=%h/hybrid-ai/.venv/bin/python -m hybrid_ai.live
 Restart=on-failure
 RestartSec=3

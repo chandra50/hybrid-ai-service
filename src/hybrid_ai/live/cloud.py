@@ -20,7 +20,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from ..demo import repair_db
-from .common import DATA_DIR, HOST, PORT, demo_data, features_from_series, now_iso, rank
+from .common import DATA_DIR, HOST, PORT, demo_data, features_from_series, manual_agent, now_iso, rank
 
 srv = MCPServer(name="hybrid-cloud", instructions="Authoritative cloud tools for the compressor fleet.")
 STATE = {"ai_down": False, "features": {}, "features_received": 0, "reservations": {}}
@@ -117,6 +117,20 @@ def explain(facts: str, question: str = "") -> dict:
     if STATE["ai_down"]:
         raise ToolError("cloud model API unavailable (cloud AI outage)")
     return {"place": "cloud", "model": "claude-haiku-5-5 (simulated: templated text, no LLM call)", "answer": facts}
+
+
+@srv.tool()
+async def recommend_repair(work_order_id: str, question: str = "") -> dict:
+    """Repair recommendation from the Claude agent: RAG over the service manuals with cited steps.
+    Fails (so the router falls back) when the cloud AI is down or no Claude credentials are configured."""
+    from ..agents.manual_agent import AgentUnavailable
+    if STATE["ai_down"]:
+        raise ToolError("cloud model API unavailable (cloud AI outage)")
+    try:
+        res = await asyncio.to_thread(manual_agent().recommend, work_order_id, question)
+    except AgentUnavailable as e:
+        raise ToolError(f"manual agent unavailable: {e}") from e
+    return {"place": "cloud", **res}
 
 
 @srv.tool()

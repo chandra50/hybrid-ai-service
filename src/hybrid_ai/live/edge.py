@@ -25,7 +25,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 
 from ..sim.fleet import SIM_EPOCH, generate_fleet
 from ..sim.telemetry import export_telemetry_files, read_telemetry_file
-from .common import DATA_DIR, HOST, PORT, SEED, demo_data, features_from_series, now_iso, rank, url
+from .common import DATA_DIR, HOST, PORT, SEED, demo_data, features_from_series, manual_agent, now_iso, rank, url
 
 srv = MCPServer(name="hybrid-edge", instructions="Edge tools next to the compressors.")
 TEL_DIR = DATA_DIR / "edge-telemetry"
@@ -89,6 +89,13 @@ def check_parts(work_order_id: str) -> dict:
     lines = [{**l, "sources": [s for s in l["sources"] if s["source_type"] in ("van", "depot")]}
              for l in _wo(work_order_id)["parts"]["lines"]]
     return {"place": "edge", "freshness": "depot mirror", "lines": lines}
+
+
+@srv.tool()
+def recommend_repair(work_order_id: str, question: str = "") -> dict:
+    """Repair recommendation from the edge's copy of the manuals: retrieval only, no LLM."""
+    return {"place": "edge", **manual_agent().retrieval_only(work_order_id, question,
+                                                             reason="edge: retrieval only (no LLM at the edge in this demo)")}
 
 
 @srv.tool()

@@ -99,6 +99,22 @@ Only the two web pages are exposed. The internal ports 8801–8813 always stay o
 
 Keep `HYBRID_BIND=127.0.0.1` and proxy `/` to `http://127.0.0.1:8803` (or 8765) with `auth_basic` and TLS.
 
+## 4a. Turn on the AI manual agent (optional)
+
+The live demo includes a **repair-recommendation agent**: Claude Opus 5.5 searches the service manuals and repair history (RAG) and writes cited repair steps. It needs an Anthropic API key. Without one, every place answers retrieval only: the best-matching manual passages, no LLM.
+
+```bash
+sudo nano /etc/default/hybrid-ai
+```
+
+Uncomment `ANTHROPIC_API_KEY=` and paste your key. The file is readable by root only. Then restart:
+
+```bash
+sudo systemctl restart hybrid-ai-live
+```
+
+Click **Ask the manual agent (RAG)** on the live page. With a key and Online, it runs in the cloud: expect 20–60 s and a few thousand tokens per question (Opus 5.5 is priced at $4 / $20 per million input / output tokens). Offline, or with the cloud AI down, the edge or device answers instantly from its own copy of the manuals.
+
 ## 5. Check it's working
 
 ```bash

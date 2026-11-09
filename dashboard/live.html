@@ -90,6 +90,7 @@
           <button class="btn ghost" data-act="step">Mark next step done</button>
           <button class="btn ghost" data-act="ask">Ask the assistant</button>
           <button class="btn ghost" data-act="complete">Complete job</button>
+          <button class="btn amber" data-act="agent" style="grid-column: 1 / -1">Ask the manual agent (RAG)</button>
         </div>
         <button class="btn amber" id="story-btn" style="width:100%;margin-top:10px">Run the repair story (about 1 minute)</button>
         <div class="story" id="story">Each action is a real request: the device's router tries places in order, over MCP, through the network simulator.</div>
@@ -99,8 +100,15 @@
       <div class="card">
         <div class="lbl">Requests: where each one ran, every attempt, real time taken</div>
         <table class="log"><thead><tr><th>Time</th><th>Request</th><th>Tool</th><th>Attempts</th><th>Ran on</th><th>Why</th><th>Total</th></tr></thead><tbody id="log"></tbody></table>
-        <div class="sub" style="margin-top:6px">Tokens: 0 for every request. The demo makes no LLM calls; "explain" returns templated text from whichever place answers.</div>
+        <div class="sub" style="margin-top:6px">Tokens: only the manual agent calls an LLM (Claude Opus 5.5, in the cloud, when an API key is set) and shows its real token use; every other request, and the agent's edge and device fallbacks, use no LLM.</div>
       </div>
+    </section>
+
+    <section class="card" id="agent-card" hidden aria-label="Manual agent answer">
+      <div class="row"><div class="lbl">Manual agent · repair recommendation</div><span id="agent-meta"></span></div>
+      <pre id="agent-answer" style="white-space:pre-wrap;font:13px/1.5 system-ui,sans-serif;margin:8px 0"></pre>
+      <div class="lbl">Sources (retrieved manual passages)</div><div id="agent-sources" class="sub"></div>
+      <div class="lbl" style="margin-top:8px">Agent steps</div><div id="agent-steps" class="sub"></div>
     </section>
   </main>
   <script src="live.js"></script>

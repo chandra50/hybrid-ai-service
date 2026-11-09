@@ -134,6 +134,34 @@ When the edge isn't answering, the edge is skipped for `diagnose_issue` and `exp
 
 ---
 
+## 2.8 The AI agent: repair recommendations from the service manuals (RAG)
+
+`hybrid_ai.agents.manual_agent` is the demo's one real AI agent: a tool-use loop on **Claude Opus 5.5** (`claude-opus-5-5`, Anthropic Python SDK 2.6, effort `medium`, server-side refusal fallbacks enabled).
+
+| Tool given to Claude | What it returns |
+|---|---|
+| `search_service_manual(query, compressor_model?)` | Top 5 passages from the manuals and past repair notes (BM25, `hybrid_ai.rag.index`, 117 passages) |
+| `get_work_order(work_order_id)` | Compressor, site hazards, reported symptoms, recent alarms, the repair-rec model's ranked causes, planned parts |
+| `get_repair_history(asset_id)` | Past repairs on that compressor |
+
+The system prompt requires a citation (`[doc_id]`) for every step and only retrieved part numbers. The answer comes back with its citations (checked against the index), the tool-call trace, and token usage.
+
+**Where it runs (MCP tool `recommend_repair`):**
+
+| Place | Behavior |
+|---|---|
+| Cloud | The Claude agent. Fails fast when no credentials are set, `HYBRID_LLM=off`, or during a cloud AI outage, so the router falls back. The router allows it 120 s. |
+| Edge | Retrieval only from the edge's copy of the manuals (no LLM at the edge in this demo) |
+| Device | Retrieval only from the mission pack |
+
+Router order: Online cloud → edge → device; Limited and Offline edge → device.
+
+**Credentials:** `ANTHROPIC_API_KEY` in the environment, or `/etc/default/hybrid-ai` on a server, or `~/.config/hybrid-ai/env` for the user service. Without credentials, everything still works, retrieval only.
+
+**CLI:** `PYTHONPATH=src .venv/bin/python -m hybrid_ai.agents.manual_agent WO-2026-0001 "question"`.
+
+**Tests:** `tests/test_manual_agent.py` checks retrieval (all 18 faults found from their symptoms) and the agent loop against a scripted stand-in for the API (tool calls, results returned in one turn, tool errors returned to Claude, citations validated, refusal handled). The live test runs with `HYBRID_LLM=off`, so tests never spend tokens. **A real Claude call has not been tested in this repo yet:** it needs a key.
+
 ## 3. Shared components
 
 ### 3.1 Data and simulator (`hybrid_ai.sim`)

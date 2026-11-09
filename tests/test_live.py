@@ -32,7 +32,8 @@ class LiveStack(unittest.TestCase):
     def setUpClass(cls):
         from hybrid_ai.live.__main__ import start, wait_ready
         cls.tmp = tempfile.TemporaryDirectory()
-        cls.procs = start({"HYBRID_PORT_BASE": str(cls.BASE), "HYBRID_LIVE_DIR": cls.tmp.name})
+        cls.procs = start({"HYBRID_PORT_BASE": str(cls.BASE), "HYBRID_LIVE_DIR": cls.tmp.name,
+                           "HYBRID_LLM": "off"})   # deterministic: never spend tokens in tests
         if not wait_ready(cls.BASE + 3, timeout=90):
             cls.tearDownClass()
             raise RuntimeError("live stack did not start")
@@ -75,6 +76,13 @@ class LiveStack(unittest.TestCase):
         self.assertEqual(self.call("diagnose_issue")["place"], "cloud")
         self.assertEqual(self.call("get_live_telemetry")["place"], "edge")
 
+        # Manual agent: no LLM in tests, so the cloud declines and the edge answers from its manuals
+        rec = self.call("recommend_repair")
+        self.assertEqual(rec["place"], "edge")
+        self.assertFalse(rec["attempts"][0]["ok"])
+        self.assertEqual(rec["result"]["mode"], "retrieval_only")
+        self.assertTrue(rec["result"]["citations"])
+
         # Offline: WAN cut; edge and device carry on; writes queue
         self.net(mode="OFFLINE")
         self.wait_mode("OFFLINE")
@@ -93,6 +101,7 @@ class LiveStack(unittest.TestCase):
         self.assertEqual(d["place"], "device")
         self.assertEqual(d["result"]["inputs"], "symptoms only (no live data)")
         self.assertEqual(self.call("get_live_telemetry")["status"], "failed")
+        self.assertEqual(self.call("recommend_repair")["place"], "device")
 
         # Back online: outbox replays to the cloud DB exactly once
         self.net(mode="ONLINE", sensors_lost=False)

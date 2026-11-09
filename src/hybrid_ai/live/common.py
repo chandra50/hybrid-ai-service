@@ -74,5 +74,17 @@ def rank(asset_model: str, readings, trends, symptoms) -> list[dict[str, Any]]:
     return repair_model().predict(asset_model, readings, trends, symptoms)
 
 
+_AGENT = None
+
+
+def manual_agent():
+    """One ManualAgent per process, over this place's copy of the manuals."""
+    global _AGENT
+    if _AGENT is None:
+        from ..agents.manual_agent import ManualAgent
+        _AGENT = ManualAgent(demo_data())
+    return _AGENT
+
+
 def dumps(obj: Any) -> str:
     return json.dumps(obj, separators=(",", ":"))

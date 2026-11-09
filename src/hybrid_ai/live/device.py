@@ -34,9 +34,10 @@ from starlette.responses import JSONResponse, RedirectResponse
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
-from .common import BIND, DATA_DIR, HOST, PORT, ROOT, assigned_job, demo_data, now_iso, rank, url
+from .common import BIND, DATA_DIR, HOST, PORT, ROOT, assigned_job, demo_data, manual_agent, now_iso, rank, url
 
 DEADLINE = {"cloud": 3.0, "edge": 2.0}
+TOOL_DEADLINE = {("cloud", "recommend_repair"): 120.0}   # an agent takes several model turns
 POLICY = {  # tool -> mode -> places in order
     "diagnose_issue": {"ONLINE": ["cloud", "edge", "device"], "LIMITED": ["edge", "device"], "OFFLINE": ["edge", "device"]},
     "get_live_telemetry": {"ONLINE": ["edge"], "LIMITED": ["edge"], "OFFLINE": ["edge"]},
@@ -46,6 +47,7 @@ POLICY = {  # tool -> mode -> places in order
     "get_repair_plan": {"ONLINE": ["cloud", "device"], "LIMITED": ["cloud", "device"], "OFFLINE": ["device"]},
     "explain": {"ONLINE": ["cloud", "edge", "device"], "LIMITED": ["edge", "device"], "OFFLINE": ["edge", "device"]},
     "search_knowledge": {"ONLINE": ["device"], "LIMITED": ["device"], "OFFLINE": ["device"]},
+    "recommend_repair": {"ONLINE": ["cloud", "edge", "device"], "LIMITED": ["edge", "device"], "OFFLINE": ["edge", "device"]},
 }
 WRITES = {"update_step": "P1", "record_outcome": "P1", "reserve_parts": "P1", "upload_photo": "P4"}
 WHY = {
@@ -96,20 +98,21 @@ class Device:
 
     # ---------------------------------------------------------------- remote calls
     async def remote(self, place: str, tool: str, args: dict) -> tuple[bool, Any, float, str]:
+        deadline = TOOL_DEADLINE.get((place, tool), DEADLINE[place])
         route = {"cloud": "device-cloud", "edge": "device-edge"}[place]
         t = time.perf_counter()
         try:
             async def go():
-                async with Client(url(route), read_timeout_seconds=DEADLINE[place]) as c:
+                async with Client(url(route), read_timeout_seconds=deadline) as c:
                     return await c.call_tool(tool, args)
-            res = await asyncio.wait_for(go(), timeout=DEADLINE[place])
+            res = await asyncio.wait_for(go(), timeout=deadline)
             ms = (time.perf_counter() - t) * 1000
             text = res.content[0].text if res.content else "{}"
             if res.is_error:
                 return False, None, ms, text[:160]
             return True, json.loads(text), ms, ""
         except asyncio.TimeoutError:
-            return False, None, (time.perf_counter() - t) * 1000, f"timed out after {DEADLINE[place]:.0f} s"
+            return False, None, (time.perf_counter() - t) * 1000, f"timed out after {deadline:.0f} s"
         except Exception as e:  # noqa: BLE001  refused / cut by the network
             msg = str(e) or type(e).__name__
             if hasattr(e, "exceptions"):
@@ -139,6 +142,9 @@ class Device:
             q = (args.get("query") or "").lower()
             hits = [m for m in demo_data()["manuals"].get(a["model"], []) if not q or q in (m["title"] + m["text"]).lower()]
             return {"place": "device", "source": "mission pack", "hits": [{"title": m["title"]} for m in hits[:4]]}
+        if tool == "recommend_repair":
+            return {"place": "device", **manual_agent().retrieval_only(wo["work_order_id"], args.get("question", ""),
+                                                                       reason="device: retrieval only from the mission pack")}
         if tool == "explain":
             return {"place": "device", "model": "device-local-3b (simulated: templated text, no LLM call)", "answer": args.get("facts", "")}
         raise RuntimeError(f"no local implementation of {tool}")

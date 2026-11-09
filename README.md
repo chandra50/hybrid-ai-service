@@ -67,6 +67,8 @@ PYTHONPATH=src .venv/bin/python -m hybrid_ai.live
 
 Open http://127.0.0.1:8803/live.html and click **Run the repair story**.
 
+**AI manual agent:** set `ANTHROPIC_API_KEY` before starting, and **Ask the manual agent (RAG)** gets a cited repair recommendation from Claude Opus 5.5, which searches the service manuals. Without a key, it answers retrieval only. Details: [docs/TECHNICAL.md](docs/TECHNICAL.md) §2.8.
+
 **Deploy on an Ubuntu server:** build a tarball with `tools/make_release.sh` and follow [DEPLOY.md](DEPLOY.md).
 
 **Deploy on this machine** as two systemd user services (live demo + simulated dashboard, localhost only):

@@ -52,16 +52,16 @@
     $("#b-cloud").innerHTML = c ? `<div class="lbl">Databases (live values)</div>
       ${kv("Repair recommendations DB", `${c.plans} plans · ${c.steps_done} steps done`)}${kv("Completed work orders", c.completed.join(", ") || "none")}
       ${kv("Telemetry features from the edge", `${c.features_received} received`)}${kv("Parts reservations", c.reservations)}
-      <div class="lbl">MCP tools</div>${tools(["diagnose_issue", "find_technicians", "recommend_repair_location", "check_parts", "reserve_parts", "get_repair_plan", "update_step", "record_outcome", "explain", "ingest_features"], "cloud")}` : "";
+      <div class="lbl">MCP tools</div>${tools(["diagnose_issue", "find_technicians", "recommend_repair_location", "check_parts", "reserve_parts", "get_repair_plan", "update_step", "record_outcome", "recommend_repair", "explain", "ingest_features"], "cloud")}` : "";
     $("#h-edge").textContent = e ? "MCP server · process up" : "process not answering";
     $("#b-edge").innerHTML = e ? `<div class="lbl">Data (live values)</div>
       ${kv("Telemetry files (JSONL)", e.telemetry_files)}${kv("Features pushed to the cloud", e.features_pushed)}${kv("Buffered (waiting for the WAN)", e.buffered)}
-      <div class="lbl">MCP tools</div>${tools(["get_live_telemetry", "diagnose_issue", "find_technicians", "check_parts", "explain"], "edge")}` : "";
+      <div class="lbl">MCP tools</div>${tools(["get_live_telemetry", "diagnose_issue", "find_technicians", "check_parts", "recommend_repair", "explain"], "edge")}` : "";
     $("#h-device").textContent = "router · link monitor · process up";
     $("#b-device").innerHTML = `<div class="lbl">Databases (live values)</div>
       ${kv("Mission pack DB", dv.mission_pack.length ? `plan ${dv.mission_pack[0].work_order_id} · synced` : "empty (waiting for the cloud)")}
       ${kv("Outbox", `${queued} queued · ${ob.length - queued} synced`)}${kv("Van stock", `${Object.values(dv.van).reduce((a, b) => a + b, 0)} parts`)}
-      <div class="lbl">Local tools</div>${tools(["diagnose_issue", "check_parts", "get_repair_plan", "recommend_repair_location", "search_knowledge", "explain"], "device")}`;
+      <div class="lbl">Local tools</div>${tools(["diagnose_issue", "check_parts", "get_repair_plan", "recommend_repair_location", "search_knowledge", "recommend_repair", "explain"], "device")}`;
     $("#p-cloud").classList.toggle("down", !L["device-cloud"]?.up);
     $("#p-edge").classList.toggle("down", !L["device-edge"]?.up);
     for (const p of ["cloud", "edge", "device"]) $(`#p-${p}`).classList.toggle("hit", !!lastHit && lastHit.place === p && Date.now() - lastHit.at < 2500);
@@ -89,6 +89,7 @@
     if (r.candidates) return `${PLACE[x.place]} (${r.freshness}): ${r.candidates.map((c) => c.name).join(", ")}`;
     if (r.lines) return `${PLACE[x.place]} (${r.freshness}): ${r.lines.map((l) => l.part_number + (l.in_van !== undefined ? ` ×${l.in_van} in van` : "")).join(", ")}`;
     if (r.plan) return `${PLACE[x.place]}: plan with ${r.plan.steps.length} steps${r.copy_synced_at ? " (mission pack copy)" : " (cloud DB)"}`;
+    if (r.mode) return `${PLACE[x.place]} · ${r.mode === "llm" ? r.model : "retrieval only, no LLM"}: recommendation below`;
     if (r.answer !== undefined) return `${PLACE[x.place]} · ${r.model}: ${r.answer}`;
     if (r.queued) return `Queued in the device outbox (key ${r.idempotency_key})`;
     return `${PLACE[x.place] || "?"}: ${JSON.stringify(r).slice(0, 120)}`;
@@ -109,6 +110,10 @@
     } else if (name === "ask") {
       const facts = lastDiag ? `Most likely ${lastDiag.cause_code} (${Math.round(lastDiag.probability * 100)}%). Follow the repair plan, lockout first.` : "Open the repair plan and start with lockout.";
       x = await call("explain", { question: "What should I do?", facts }, "Ask: what should I do?");
+    } else if (name === "agent") {
+      say("Asking the manual agent… (Claude can take 20–60 s; without it, retrieval answers instantly)");
+      x = await call("recommend_repair", { question: "" }, "Manual agent: what's wrong and how do I fix it?");
+      showAgent(x);
     } else if (name === "complete") {
       const cause = lastDiag?.cause_code || plan?.cause_code || "unknown";
       x = await call("record_outcome", { confirmed_cause: cause, by: "TEC-0001", notes: "Repaired per plan" }, `Complete job, cause ${cause}`);
@@ -120,6 +125,22 @@
     return x;
   }
   const say = (t) => { $("#story").textContent = t; };
+  function showAgent(x) {
+    const card = $("#agent-card"), r = x.result;
+    card.hidden = false;
+    if (!r) {
+      $("#agent-meta").innerHTML = '<span class="prov none">failed</span>';
+      $("#agent-answer").textContent = "No place could answer: " + (x.attempts.map((a) => `${PLACE[a.place]}: ${a.error || "ok"}`).join("; ") || x.why);
+      $("#agent-sources").textContent = ""; $("#agent-steps").textContent = ""; return;
+    }
+    const tok = r.usage ? r.usage.input_tokens + r.usage.output_tokens : 0;
+    const fell = x.attempts.filter((a) => !a.ok).map((a) => `${PLACE[a.place]}: ${a.error}`).join(" · ");
+    $("#agent-meta").innerHTML = `<span class="prov ${x.place}">${PLACE[x.place]}</span> ${r.mode === "llm" ? esc(r.model) : "retrieval only (no LLM)"}
+      · ${x.ms} ms · ${tok ? `${r.usage.input_tokens} in / ${r.usage.output_tokens} out tokens` : "0 tokens"}`;
+    $("#agent-answer").textContent = r.answer + (r.reason ? `\n\n(${r.reason})` : "") + (fell ? `\n(tried first: ${fell})` : "");
+    $("#agent-sources").innerHTML = r.citations.map((c) => `<code>${esc(c.doc_id)}</code> ${esc(c.title)}`).join("<br>") || "none";
+    $("#agent-steps").innerHTML = r.tool_calls.map((t) => `<code>${esc(t.tool)}</code> ${esc(JSON.stringify(t.input))} → ${t.error ? "error: " + esc(t.error) : (t.results ?? "") + " result(s)"}`).join("<br>");
+  }
   const setNet = (body) => api("/api/net", body).then(refresh);
 
   async function waitMode(m, ms = 25000) {
@@ -139,8 +160,8 @@
       await step("3 · On site (Offline): the WAN is cut. Live readings come over the local link; lockout steps queue in the outbox.", async () => {
         await setNet({ mode: "OFFLINE" }); await waitMode("OFFLINE"); await act("telemetry");
         for (let i = 0; i < 3; i++) await act("step"); });
-      await step("4 · Gateway dark (sensors lost): the edge stops answering, so the device copy of the model ranks causes from symptoms.", async () => {
-        await setNet({ sensors_lost: true }); await sleep(3500); await act("diagnose"); await act("step"); await act("complete"); });
+      await step("4 · Gateway dark (sensors lost): the edge stops answering, so the device copy of the model ranks causes from symptoms, and the manual agent answers from the mission pack.", async () => {
+        await setNet({ sensors_lost: true }); await sleep(3500); await act("diagnose"); await act("agent"); await act("step"); await act("complete"); });
       await step("5 · Back online: the device detects the cloud again and the outbox replays to the cloud DB, safety steps first.", async () => {
         await setNet({ mode: "ONLINE", sensors_lost: false }); await waitMode("ONLINE");
         const t = Date.now();

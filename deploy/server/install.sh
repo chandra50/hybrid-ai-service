@@ -71,7 +71,13 @@ if [[ ! -f /etc/default/hybrid-ai ]]; then
 # Address the two web pages listen on. 127.0.0.1 = this server only (use an SSH tunnel).
 # 0.0.0.0 = every network interface. The demo has NO login: only do this on a trusted network.
 HYBRID_BIND=127.0.0.1
+
+# Manual agent (RAG over the service manuals, written by Claude Opus 5.5).
+# Without a key it still answers, retrieval only (manual passages, no LLM).
+# ANTHROPIC_API_KEY=sk-ant-...
+# HYBRID_LLM=off          # force retrieval only, even with a key
 EOF
+  chmod 600 /etc/default/hybrid-ai
 fi
 
 # 7. services

@@ -73,6 +73,10 @@
 
 3. If you're running short, use **Next step** and skip ahead instead of **Play all**.
 
+### Optional · the AI manual agent
+
+On the live page, click **Ask the manual agent (RAG)**. With an API key and Online, Claude searches the manuals and answers with cited steps (20–60 s). Then set **Offline** and ask again: the edge answers instantly from its own copy of the manuals, with no LLM. "Same question, the answer comes from wherever it can."
+
 ### 4:00–4:30 · The proof
 
 1. Point at the **Live requests** totals: about 55 requests, with **about half running on the edge or device**, and tokens split across cloud, edge and device.
