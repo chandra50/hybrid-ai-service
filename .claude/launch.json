@@ -4,8 +4,20 @@
     {
       "name": "dashboard",
       "runtimeExecutable": "bash",
-      "runtimeArgs": ["-c", "cd /home/lenovo/hybrid-ai && PYTHONPATH=src exec python3 -m hybrid_ai.demo.server --port 8765 --reset"],
+      "runtimeArgs": [
+        "-c",
+        "cd /home/lenovo/hybrid-ai && PYTHONPATH=src exec python3 -m hybrid_ai.demo.server --port 8765 --reset"
+      ],
       "port": 8765
+    },
+    {
+      "name": "live",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "cd /home/lenovo/hybrid-ai && PYTHONPATH=src exec .venv/bin/python -m hybrid_ai.live"
+      ],
+      "port": 8803
     }
   ]
 }

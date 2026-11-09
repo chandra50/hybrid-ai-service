@@ -1,0 +1,4 @@
+jsonschema==4.26.0
+mcp==2.3.0
+starlette==1.10.0
+uvicorn==0.54.0

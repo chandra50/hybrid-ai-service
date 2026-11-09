@@ -1,6 +1,6 @@
 # hybrid-ai: Field Service Agent Design
 
-**Status:** Draft v0.5 · 2026-11-08 (three modes, three places, repair recommendation model; demo scope in §11)
+**Status:** Draft v0.6 · 2026-11-09 (three modes, three places, repair recommendation model, live multi-process demo; demo scope in §11). Implementation details: [TECHNICAL.md](TECHNICAL.md).
 **Scope:** MCP-based agents that help maintain a fleet of industrial compressors spread across California, and keep working when the network is slow, intermittent or gone.
 
 ---
@@ -260,7 +260,7 @@ Raw data stays in the edge buffer. The edge sends **features** (RMS, trends, ano
 
 | Concern | Choice (initial) |
 |---------|-----------------|
-| MCP servers | Python, official MCP SDK; one codebase with a backend adapter per place |
+| MCP servers | Python, official MCP SDK (`mcp` 2.3, streamable HTTP); one codebase with a backend adapter per place. Running today in the live demo: cloud and edge MCP servers, device router as MCP client (§12) |
 | Edge data | Demo: JSONL telemetry files. Later: OPC-UA, Modbus TCP, MQTT |
 | Storage | SQLite on device and edge; SQLite (demo) / Postgres in the cloud for repair recommendations |
 | Models | Claude in the cloud; mid-size local model at the edge; small on-device model |
@@ -280,7 +280,9 @@ hybrid-ai/
 │   ├── contracts/        # MCP tool schemas + provenance envelope
 │   ├── sim/              # compressor fleet, telemetry and network-mode simulators
 │   ├── models/           # repair recommendation model: training + predict
-│   └── demo/             # demo data, repair recommendations DB, API server
+│   ├── demo/             # demo data, repair recommendations DB, simulated-dashboard server
+│   └── live/             # live demo: netsim, cloud, edge, device, launcher (§12)
+├── deploy/               # systemd user services + installer
 ├── tools/                # deck builders
 └── tests/
 ```
@@ -290,9 +292,9 @@ hybrid-ai/
 ## 10. Roadmap
 
 1. **Contracts and simulator** (done).
-2. **Cloud MVP (Online):** real MCP servers and agents for W1–W4 with rule-based approvals.
-3. **Device:** mission packs, field assistant, outbox; test Limited and Offline.
-4. **Router and modes:** link monitor, fallbacks, deadlines, provenance.
+2. **Cloud MVP (Online):** real MCP servers and agents for W1–W4 with rule-based approvals. *(MCP servers running in the live demo; LLM agents not yet.)*
+3. **Device:** mission packs, field assistant, outbox; test Limited and Offline. *(Mission pack, outbox and replay running in the live demo.)*
+4. **Router and modes:** link monitor, fallbacks, deadlines, provenance. *(Running in the live demo, over a simulated network.)*
 5. **Edge:** gateway on one pilot site, edge model, safety rules; test sensors lost.
 6. **Pilot, then scale.**
 
@@ -314,6 +316,7 @@ hybrid-ai/
 | 8 | Repair recommendations | **Stored in a database.** | SQLite behind the work-orders MCP server; the assigned technician works from it (§4.2). |
 | 9 | Operating modes | **Three: Online, Limited, Offline.** | Cloud AI outage and sensors lost are events inside a mode; places are Cloud, Edge and Device. |
 | 10 | Cause ranking | **A trained repair recommendation model.** | Replaces the hand-written scoring; same weights in every place (§4.3). |
+| 11 | Proving the hybrid behavior | **A live demo with real processes.** | Cloud, edge and device run as separate processes talking MCP through a fault-injecting network proxy (§12); deployable as user services on one machine. |
 
 ### 11.1 Approval rules
 
@@ -329,3 +332,24 @@ The first matching rule wins. The same rules run everywhere, so approvals keep w
 | Reserve / order parts | $1,000 or more, or vendor order | **Regional manager** |
 | Send to workshop | Any | **Supervisor** |
 | Anything offline | Would otherwise be auto | **Auto, provisional**; confirmed on sync |
+
+---
+
+## 12. Live demo: the design running as real processes
+
+The simulated dashboard shows the behavior; the **live demo** makes it actually happen. Full details are in [TECHNICAL.md](TECHNICAL.md).
+
+- **Four processes on one machine:** cloud (MCP server), edge (MCP server), device (the tablet backend), and a network simulator. The simulator is a TCP proxy that delays, flaps or refuses connections according to the mode.
+- **The device detects the mode itself** from health probes (success rate and round-trip time), then routes each call by the policy in §5.1, with deadlines and fallbacks.
+- **Offline writes go to a real SQLite outbox** and replay to the cloud's repair recommendations DB when the link returns, safety steps first. Idempotency keys make replays exactly-once.
+- **The edge stores and forwards** telemetry features to the cloud and buffers them while the WAN is down.
+- **Not yet real:** LLM calls (answers are templated, 0 tokens), physical separation, and industrial protocols (telemetry is replayed from files).
+
+| Measured in one run | Result |
+|---|---|
+| Online diagnose | cloud, 266 ms |
+| Limited diagnose | edge, 67 ms |
+| Offline lockout steps | queued on the device |
+| Sensors lost diagnose | device, 0.2 ms, symptoms only |
+| Back online | 5 queued writes replayed once each; work order completed |
+

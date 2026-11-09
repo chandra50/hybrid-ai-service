@@ -8,7 +8,7 @@ See [docs/DESIGN.md](docs/DESIGN.md) for the architecture and the demo-scope dec
 (cloud, edge, device) that agents move between, one MCP contract shared by all of them, and three operating
 modes (Online, Limited, Offline) plus two events (cloud AI outage, sensors lost).
 
-## Status: phase 1, contracts and simulators
+## What's here
 
 | Piece | Where | What it does |
 |-------|-------|-------------|
@@ -53,6 +53,26 @@ python3 -m hybrid_ai.sim scenario psps_outage --probe-every 3600
 
 Or install it as a package with `pip install -e .[dev]` and use the `hybrid-ai-sim` command.
 
+## Live demo: real cloud, edge and device processes
+
+Cloud and edge MCP servers, the device's router/outbox and a fault-injecting network proxy, as four real processes. See [docs/TECHNICAL.md](docs/TECHNICAL.md).
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install -r deploy/requirements.txt
+```
+
+```bash
+PYTHONPATH=src .venv/bin/python -m hybrid_ai.live
+```
+
+Open http://127.0.0.1:8803/live.html and click **Run the repair story**.
+
+**Deploy on this machine** as two systemd user services (live demo + simulated dashboard, localhost only):
+
+```bash
+deploy/install.sh
+```
+
 ## Demo dashboard
 
 Presenting? Follow the 5-minute run sheet in [docs/DEMO.md](docs/DEMO.md).
@@ -81,13 +101,17 @@ Then open http://localhost:8765. Add `--reset` to rebuild the database. Map tile
 ## Slide decks
 
 - [docs/hybrid-ai-brief.pptx](docs/hybrid-ai-brief.pptx): 9-slide brief covering the situation, the challenges and the solution, from the supervisor's and the repairing technician's points of view.
-- [docs/hybrid-ai-design.pptx](docs/hybrid-ai-design.pptx): 22-slide design overview, including how each hybrid mode is handled.
+- [docs/hybrid-ai-design.pptx](docs/hybrid-ai-design.pptx): 23-slide design overview, including how each hybrid mode is handled and the live demo (slide 13).
 
 - [docs/agent-movement.pptx](docs/agent-movement.pptx): one animated slide (also slide 12 of the design deck and slide 5 of the brief; click through in Slide Show) of agents moving between device, edge and cloud as the mode changes; [docs/agent-movement.gif](docs/agent-movement.gif) is a preview. Rebuild with `python tools/build_agent_motion.py`.
 
 Rebuild them with `pip install python-pptx`, then `python tools/build_brief_deck.py` and `python tools/build_deck.py`.
 
-## Next: phase 2
+## Next
+
+Replace the templated answers with real LLM agents on the same MCP tools, then pilot on real hardware (edge gateway, tablets).
+
+### Earlier plan for phase 2
 
 A cloud MVP for the Online mode. Our own MCP servers (the system of record for the demo,
 built on the official SDK and seeded from the simulated fleet), rule-based approvals, an orchestrator, and specialist agents running

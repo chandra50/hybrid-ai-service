@@ -175,10 +175,10 @@ def build(out: Path) -> None:
 
     # 8 - Proof and next steps ----------------------------------------------------
     s = d.slide("What the demo shows, and what's next", dark=True, title_size=36, title_box=(0.8, 0.7, 11.5, 0.9),
-                notes="Figures are from one walkthrough run in the dashboard; timings vary a little per run "
-                      "because the network model has randomness.")
-    proof = [("50+", "requests in one repair, each logged"), ("~50%", "ran on the edge or the device"),
-             ("12 / 12", "repair steps reached the database"), ("0", "updates lost offline")]
+                notes="Figures are from the live demo (real processes) and one dashboard walkthrough run; "
+                      "timings vary per run because the network flaps randomly in Limited mode.")
+    proof = [("4", "real processes: cloud, edge, device, network"), ("~50%", "of requests ran on the edge or device"),
+             ("5 / 5", "offline writes replayed exactly once"), ("0", "updates lost offline")]
     pw = 11.7 / 4
     for i, (n, l) in enumerate(proof):
         x = 0.8 + i * pw
@@ -186,7 +186,7 @@ def build(out: Path) -> None:
         d.text(s, x, 3.0, pw - 0.3, 0.8, l, size=17, color=ON_DARK)
     d.text(s, 0.8, 4.35, 11.7, 0.5, "Next steps", size=22, bold=True, color=WHITE)
     d.text(s, 0.8, 4.95, 11.7, 1.8,
-           ["Replace the rule-based plans with real MCP agents on the same tools and database",
+           ["Add LLM agents on the same MCP tools; the live demo already runs the rest",
             "Pilot with one depot's technicians and a handful of compressors",
             "Measure time to diagnose, first-time fix rate and return visits"],
            size=17, color=ON_DARK, bullet=True, space_after=8)

@@ -1,0 +1,15 @@
+[Unit]
+Description=hybrid-ai live demo: cloud, edge, device and network simulator (localhost only)
+After=network.target
+
+[Service]
+WorkingDirectory=%h/hybrid-ai
+Environment=PYTHONPATH=%h/hybrid-ai/src
+ExecStart=%h/hybrid-ai/.venv/bin/python -m hybrid_ai.live
+Restart=on-failure
+RestartSec=3
+KillSignal=SIGINT
+TimeoutStopSec=20
+
+[Install]
+WantedBy=default.target

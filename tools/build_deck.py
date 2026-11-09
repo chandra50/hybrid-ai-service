@@ -461,6 +461,32 @@ def build(out: Path) -> None:
     from build_agent_motion import add_motion_slide
     add_motion_slide(d)
 
+    # Running for real: the live demo ---------------------------------------
+    s = d.slide("Running for real: four processes",
+                notes="The live demo (python -m hybrid_ai.live, or the deployed hybrid-ai-live service). Cloud and edge are "
+                      "real MCP servers; the device routes real MCP calls through a TCP proxy that delays, flaps or cuts "
+                      "links. The table shows one measured run. No LLM calls are made: answers are templated.")
+    procs = [("Device", ":8803", "Router + link monitor\nmission pack + outbox (SQLite)"),
+             ("Edge", ":8802", "MCP server\ntelemetry files, model copy"),
+             ("Cloud", ":8801", "MCP server\nrepair recommendations DB")]
+    pw2 = 3.0
+    for i, (pl, port, desc) in enumerate(procs):
+        x = MX + i * (pw2 + 0.95)
+        fill, col = TIER[pl]
+        d.box(s, x, 1.6, pw2, 1.35, fill=fill, color=col, anchor=MID, align=C,
+              paras=[{"text": f"{pl}  {port}", "bold": True, "size": 17}] + [{"text": t, "size": 12} for t in desc.split("\n")])
+        if i < 2:
+            d.arrow(s, x + pw2 + 0.05, 2.27, x + pw2 + 0.9, 2.27, color=MUTED, width=2, both=True)
+    d.box(s, MX, 3.2, 3 * pw2 + 2 * 0.95, 0.5, fill=TINT, size=13, anchor=MID, align=C,
+          paras=[{"runs": [("Every arrow goes through the network simulator (:8810):  ", {"bold": True}), ("Online 40 ms · Limited flaps, 250 ms · Offline refuses the WAN · sensors lost cuts the edge", {})]}])
+    rows = [["Situation", "Where the request actually ran", "Measured"],
+            ["Online: what's wrong?", "Cloud (model, fleet telemetry)", "266 ms"],
+            ["Limited: what's wrong?", "Edge (local first)", "67 ms"],
+            ["Offline: lockout steps", "Device outbox (no WAN)", "queued"],
+            ["Sensors lost: what's wrong?", "Device (symptoms only)", "0.2 ms"],
+            ["Back online", "5 writes replayed to the cloud DB, once each", "270–370 ms each"]]
+    d.table(s, MX, 3.95, [3.6, 5.0, 2.4], rows, row_h=0.48, size=13, header_size=13)
+
     # 12 - Mode x workflow -----------------------------------------------
     s = d.slide("Each mode, each workflow", notes="What every workflow does in each mode, with the place that answers.")
     tbl = [["Workflow", "Online", "Limited", "Offline"],
@@ -624,16 +650,16 @@ def build(out: Path) -> None:
 
     # 21 - Close ----------------------------------------------------------
     s = d.slide("What's running today", dark=True, title_size=40, title_box=(0.8, 0.8, 11.5, 0.9), notes="Close with what exists and the next step.")
-    stats = [("3", "places agents move between"), ("3", "modes, plus 2 events"), ("1", "trained model in all 3 places"), ("75", "tests passing")]
+    stats = [("4", "real processes in the live demo"), ("3", "modes, plus 2 events"), ("1", "trained model in all 3 places"), ("77", "tests passing")]
     sw4 = 11.7 / 4
     for i, (n, l) in enumerate(stats):
         x = 0.8 + i * sw4
         d.text(s, x, 2.0, sw4 - 0.3, 1.3, n, size=66, bold=True, color=AMBER)
         d.text(s, x, 3.3, sw4 - 0.3, 0.8, l, size=18, color=ON_DARK)
-    d.text(s, 0.8, 4.6, 11.7, 0.5, "Next: the cloud MVP", size=24, bold=True, color=WHITE)
-    d.text(s, 0.8, 5.2, 11.7, 1.5, ["Real MCP servers and agents on the same tools and repair recommendations DB",
-                                    "Rule-based approvals, then the device tier with mission packs and the outbox",
-                                    "Dashboard: supervisor, technician and walkthrough views with the live agent map"],
+    d.text(s, 0.8, 4.6, 11.7, 0.5, "Next: real LLM agents on the same tools", size=24, bold=True, color=WHITE)
+    d.text(s, 0.8, 5.2, 11.7, 1.5, ["Running now: cloud and edge MCP servers, device router, outbox and replay (live demo, deployable)",
+                                    "Next: LLM agents for orchestration and answers, on the same MCP tools",
+                                    "Then: a pilot with real hardware: one depot, its edge gateways and tablets"],
            size=16, color=ON_DARK, bullet=True, space_after=6)
 
     d.save(out)

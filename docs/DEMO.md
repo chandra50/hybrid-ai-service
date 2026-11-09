@@ -4,10 +4,16 @@
 
 ## Before you start (2 minutes, before the audience arrives)
 
-1. Start the server with a fresh database:
+1. Start the server with a fresh database. If you deployed the services (`deploy/install.sh`), they're already running: restart them for a fresh state with `systemctl --user restart hybrid-ai-dashboard hybrid-ai-live`. Otherwise:
 
    ```bash
    cd ~/hybrid-ai && PYTHONPATH=src python3 -m hybrid_ai.demo.server --port 8765 --reset
+   ```
+
+   For the optional live segment, also start the live demo in a second terminal (skip if deployed):
+
+   ```bash
+   cd ~/hybrid-ai && PYTHONPATH=src .venv/bin/python -m hybrid_ai.live
    ```
 
 2. Open http://localhost:8765 in a browser window at least **1280 px wide** (full screen is best).
@@ -71,6 +77,11 @@
 
 1. Point at the **Live requests** totals: about 55 requests, with **about half running on the edge or device**, and tokens split across cloud, edge and device.
 2. Click **Supervisor**, then **WO-2026-0001**: status **completed**. The activity feed shows the offline steps arriving after the fact.
+
+### Optional, +1 minute · "Is this real?" (live demo)
+
+1. Open http://127.0.0.1:8803/live.html: "These are four separate processes: cloud, edge, tablet, and a network in between that I can break."
+2. Click **Run the repair story**. Point at the requests table: "Each row shows every place it tried, with the real milliseconds. Offline, the lockout steps go into the tablet's outbox; back online, they replay into the cloud database, exactly once."
 
 ### 4:30–5:00 · Close (brief deck, slide 9)
 

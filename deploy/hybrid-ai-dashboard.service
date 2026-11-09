@@ -1,0 +1,14 @@
+[Unit]
+Description=hybrid-ai simulated dashboard + repair recommendations API (localhost only)
+After=network.target
+
+[Service]
+WorkingDirectory=%h/hybrid-ai
+Environment=PYTHONPATH=%h/hybrid-ai/src
+ExecStart=%h/hybrid-ai/.venv/bin/python -m hybrid_ai.demo.server --port 8765 --reset
+Restart=on-failure
+RestartSec=3
+KillSignal=SIGINT
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>hybrid-ai Live</title>
+  <link rel="stylesheet" href="app.css">
+  <style>
+    body { height: auto; overflow: auto; }
+    .wrap { padding: 14px 16px 40px; display: grid; gap: 14px; }
+    .ctl { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; }
+    .ctl .grp { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .det { font-size: 13px; }
+    .probe { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 2px; vertical-align: -1px; }
+    .probe.ok { background: var(--ok); } .probe.bad { background: var(--bad); }
+    .places { position: relative; margin-top: 26px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 46px; }
+    .place { background: #fff; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; transition: box-shadow .3s; }
+    .place.hit { box-shadow: 0 0 0 3px var(--amber); }
+    .place.down { opacity: .55; filter: grayscale(.5); }
+    .ph { color: #fff; padding: 10px 12px; display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+    .ph b { font-size: 17px; } .ph span { font-size: 12px; opacity: .9; }
+    .ph.device { background: var(--device); } .ph.edge { background: var(--edge); } .ph.cloud { background: var(--cloud); }
+    .pb { padding: 10px 12px; font-size: 13px; display: grid; gap: 8px; }
+    .lbl { font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+    .kv { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--tint); padding: 2px 0; }
+    .kv span:last-child { font-weight: 700; text-align: right; }
+    .tools { display: flex; flex-wrap: wrap; gap: 4px; }
+    .tools code { background: var(--tint); border-radius: 6px; padding: 1px 6px; font-size: 11px; }
+    .tools code.hit { background: var(--amber); }
+    .links { position: absolute; inset: 0; pointer-events: none; }
+    .link { position: absolute; top: 18px; height: 0; border-top: 4px solid var(--ok); }
+    .link.down { border-top-style: dotted; border-top-color: var(--bad); }
+    .link.flap { border-top-style: dashed; border-top-color: var(--warn); }
+    .link-t { position: absolute; top: 6px; left: 50%; transform: translateX(-50%); font-size: 10px; font-weight: 700; white-space: nowrap; color: var(--muted); }
+    .wan { position: absolute; left: 16.5%; right: 16.5%; top: -16px; height: 14px; border: 4px solid var(--ok); border-bottom: 0; border-radius: 10px 10px 0 0; }
+    .wan.down { border-style: dotted; border-color: var(--bad); } .wan.flap { border-style: dashed; border-color: var(--warn); }
+    .wan .link-t { top: -20px; background: var(--bg); padding: 0 6px; }
+    .cols { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 14px; align-items: start; }
+    .card { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+    .acts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .acts .btn { font-size: 13px; padding: 6px 8px; }
+    .story { font-size: 13px; background: #fff8e6; border-radius: 8px; padding: 8px 10px; min-height: 40px; margin-top: 8px; }
+    table.log { width: 100%; border-collapse: collapse; font-size: 12px; }
+    table.log th { text-align: left; color: var(--muted); font-size: 11px; padding: 4px; border-bottom: 1px solid var(--line); }
+    table.log td { padding: 5px 4px; border-bottom: 1px solid var(--tint); vertical-align: top; }
+    .att { white-space: nowrap; }
+    .att .x { color: var(--bad); font-weight: 700; } .att .v { color: var(--ok); font-weight: 700; }
+    .err { color: var(--muted); font-size: 11px; display: block; white-space: normal; }
+    .res { color: var(--muted); font-size: 11px; }
+    .ob { font-size: 12px; display: grid; grid-template-columns: 30px 1fr auto; gap: 6px; padding: 3px 0; border-bottom: 1px solid var(--tint); }
+    @media (max-width: 1000px) { .places { grid-template-columns: 1fr; gap: 14px; } .links, .wan { display: none; } .cols { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark" aria-hidden="true"></span>
+      <div><div class="brand-name">hybrid-ai Live</div><div class="brand-sub">cloud, edge and device as real processes · MCP over a real (simulated) network</div></div></div>
+    <a class="btn small ghost" href="index.html" style="text-decoration:none">Open the simulated dashboard</a>
+  </header>
+  <main class="wrap">
+    <section class="ctl" aria-label="Network">
+      <div class="grp"><span class="modebar-label">Set network</span>
+        <button class="mode-chip" data-mode="ONLINE" style="background:var(--online)">Online</button>
+        <button class="mode-chip dark-text" data-mode="LIMITED" style="background:var(--limited)">Limited</button>
+        <button class="mode-chip" data-mode="OFFLINE" style="background:var(--offline)">Offline</button></div>
+      <div class="grp"><span class="modebar-label">Events</span>
+        <label class="ev-toggle"><input type="checkbox" id="ai"> Cloud AI outage</label>
+        <label class="ev-toggle"><input type="checkbox" id="sensors"> Sensors lost</label></div>
+      <div class="det" id="det"></div>
+    </section>
+
+    <section class="places" id="places" aria-label="Places">
+      <div class="links"><div class="link" id="l-de"><span class="link-t" id="t-de"></span></div><div class="link" id="l-ec"><span class="link-t" id="t-ec"></span></div></div>
+      <div class="wan" id="l-dc"><span class="link-t" id="t-dc"></span></div>
+      <div class="place" id="p-device"><div class="ph device"><b>Device</b><span id="h-device"></span></div><div class="pb" id="b-device"></div></div>
+      <div class="place" id="p-edge"><div class="ph edge"><b>Edge</b><span id="h-edge"></span></div><div class="pb" id="b-edge"></div></div>
+      <div class="place" id="p-cloud"><div class="ph cloud"><b>Cloud</b><span id="h-cloud"></span></div><div class="pb" id="b-cloud"></div></div>
+    </section>
+
+    <section class="cols">
+      <div class="card">
+        <div class="lbl">Technician actions (sent to the device's router)</div>
+        <div class="sub" id="job" style="margin:4px 0 8px"></div>
+        <div class="acts">
+          <button class="btn ghost" data-act="diagnose">What's wrong?</button>
+          <button class="btn ghost" data-act="telemetry">Live readings</button>
+          <button class="btn ghost" data-act="techs">Who can help?</button>
+          <button class="btn ghost" data-act="parts">Parts</button>
+          <button class="btn ghost" data-act="plan">Open repair plan</button>
+          <button class="btn ghost" data-act="step">Mark next step done</button>
+          <button class="btn ghost" data-act="ask">Ask the assistant</button>
+          <button class="btn ghost" data-act="complete">Complete job</button>
+        </div>
+        <button class="btn amber" id="story-btn" style="width:100%;margin-top:10px">Run the repair story (about 1 minute)</button>
+        <div class="story" id="story">Each action is a real request: the device's router tries places in order, over MCP, through the network simulator.</div>
+        <div class="lbl" style="margin-top:12px">Device outbox (SQLite)</div>
+        <div id="outbox"></div>
+      </div>
+      <div class="card">
+        <div class="lbl">Requests: where each one ran, every attempt, real time taken</div>
+        <table class="log"><thead><tr><th>Time</th><th>Request</th><th>Tool</th><th>Attempts</th><th>Ran on</th><th>Why</th><th>Total</th></tr></thead><tbody id="log"></tbody></table>
+        <div class="sub" style="margin-top:6px">Tokens: 0 for every request. The demo makes no LLM calls; "explain" returns templated text from whichever place answers.</div>
+      </div>
+    </section>
+  </main>
+  <script src="live.js"></script>
+</body>
+</html>
