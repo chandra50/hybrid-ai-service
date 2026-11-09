@@ -526,6 +526,10 @@ def build(out: Path) -> None:
           paras=[{"runs": [("Grounding rules: ", {"bold": True}),
                            ("cite a passage for every step · only retrieved part numbers · say when the manual doesn't cover it", {})]}])
 
+    # Implementation architecture (shared with the brief deck)
+    from build_arch_slide import add_arch_slide
+    add_arch_slide(d)
+
     # 12 - Mode x workflow -----------------------------------------------
     s = d.slide("Each mode, each workflow", notes="What every workflow does in each mode, with the place that answers.")
     tbl = [["Workflow", "Online", "Limited", "Offline"],

@@ -1,6 +1,6 @@
 """Build a hosted copy of the simulated dashboard for a claude.ai Artifact.
 
-    python3 tools/build_artifact.py      ->  dist/artifact/{index.html, app.js, data.js}
+    python3 tools/build_artifact.py      ->  dist/artifact/{index.html, app.js, data.js, presentation/}
 
 Differences from dashboard/index.html: no <html>/<head>/<body> (added at publish time),
 Leaflet's stylesheet and app.css inlined (hosted pages load only scripts from CDNs),
@@ -36,7 +36,10 @@ def main() -> None:
     (OUT / "index.html").write_text(page, encoding="utf-8")
     for f in ("app.js", "data.js"):
         shutil.copy2(ROOT / "dashboard" / f, OUT / f)
-    print(f"wrote {OUT}: " + ", ".join(f"{p.name} ({p.stat().st_size // 1024} KB)" for p in sorted(OUT.iterdir())))
+    # the Presentation tab: page images, the PDF and the manifest, published as supporting files
+    shutil.copytree(ROOT / "dashboard" / "presentation", OUT / "presentation", dirs_exist_ok=True)
+    print(f"wrote {OUT}: " + ", ".join(f"{p.name} ({p.stat().st_size // 1024} KB)" for p in sorted(OUT.iterdir()) if p.is_file())
+          + f", presentation/ ({len(list((OUT / 'presentation').iterdir()))} files)")
 
 
 if __name__ == "__main__":

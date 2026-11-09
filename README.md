@@ -104,8 +104,8 @@ Then open http://localhost:8765. Add `--reset` to rebuild the database. Map tile
 
 ## Slide decks
 
-- [docs/hybrid-ai-brief.pptx](docs/hybrid-ai-brief.pptx): 8-slide brief covering the situation, the challenges and the solution, from the supervisor's and the repairing technician's points of view. [PDF version](docs/hybrid-ai-brief.pdf): the animated slide 5 is shown in its starting state. Rebuild the PDF from `python tools/build_brief_deck.py <out.pptx> --static`, then convert it.
-- [docs/hybrid-ai-design.pptx](docs/hybrid-ai-design.pptx): 24-slide design overview, including how each hybrid mode is handled, the live demo (slide 13) and the AI manual agent (slide 14).
+- [docs/hybrid-ai-brief.pptx](docs/hybrid-ai-brief.pptx): 9-slide brief covering the situation, the challenges, the solution and the implementation architecture (slide 9), from the supervisor's and the repairing technician's points of view. [PDF version](docs/hybrid-ai-brief.pdf): the animated slide 5 is shown in its starting state. Rebuild the PDF from `python tools/build_brief_deck.py <out.pptx> --static`, then convert it.
+- [docs/hybrid-ai-design.pptx](docs/hybrid-ai-design.pptx): 25-slide design overview, including how each hybrid mode is handled, the live demo (slide 13), the AI manual agent (slide 14) and the implementation architecture (slide 15). The brief is also in the dashboard's **Presentation** tab.
 
 - [docs/agent-movement.pptx](docs/agent-movement.pptx): one animated slide (also slide 12 of the design deck and slide 5 of the brief; click through in Slide Show) of agents moving between device, edge and cloud as the mode changes; [docs/agent-movement.gif](docs/agent-movement.gif) is a preview. Rebuild with `python tools/build_agent_motion.py`.
 

@@ -87,7 +87,7 @@ On the live page, click **Ask the manual agent (RAG)**. With an API key and Onli
 1. Open http://127.0.0.1:8803/live.html: "These are four separate processes: cloud, edge, tablet, and a network in between that I can break."
 2. Click **Run the repair story**. Point at the requests table: "Each row shows every place it tried, with the real milliseconds. Offline, the lockout steps go into the tablet's outbox; back online, they replay into the cloud database, exactly once."
 
-### 4:30–5:00 · Close (spoken, or design deck slide 24)
+### 4:30–5:00 · Close (spoken, or design deck slide 25)
 
 "Today it's a simulation, with the same contracts, database and model we'd deploy. Next: real agents on these tools, a pilot with one depot, and we'll measure time to diagnose, first-time fix rate and return visits."
 

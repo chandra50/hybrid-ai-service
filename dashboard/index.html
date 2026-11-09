@@ -48,8 +48,21 @@
       <div class="view-tabs" role="tablist" aria-label="Main view">
         <button role="tab" class="view-tab active" data-view="topo">Where agents run</button>
         <button role="tab" class="view-tab" data-view="map">Map</button>
+        <button role="tab" class="view-tab" data-view="presentation">Presentation</button>
       </div>
       <div id="topo" class="topo" aria-label="Where agents and databases are running"></div>
+      <div id="deck" class="deck" hidden aria-label="Presentation: the brief deck">
+        <div class="deck-stage"><img id="deck-img" alt=""></div>
+        <div class="deck-bar">
+          <button id="deck-prev" class="deck-btn" aria-label="Previous slide">&#8249;</button>
+          <span id="deck-count" class="deck-count"></span>
+          <button id="deck-next" class="deck-btn" aria-label="Next slide">&#8250;</button>
+          <span id="deck-title" class="deck-title"></span>
+          <button id="deck-full" class="deck-full" aria-pressed="false">Full window</button>
+          <a id="deck-pdf" class="deck-pdf" target="_blank" rel="noopener">Open the PDF</a>
+        </div>
+        <div id="deck-thumbs" class="deck-thumbs" role="tablist" aria-label="Slides"></div>
+      </div>
       <div class="map-box" hidden>
         <div id="map" aria-label="Map of assets, depots and technicians"></div>
         <div class="legend">
@@ -92,6 +105,7 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="data.js"></script>
+  <script src="presentation/slides.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -521,9 +521,50 @@
     document.querySelectorAll(".view-tab").forEach((b) => b.classList.toggle("active", b.dataset.view === v));
     $("#topo").hidden = v !== "topo";
     $(".map-box").hidden = v !== "map";
+    $("#deck").hidden = v !== "presentation";
+    if (v !== "presentation") deckFull(false);
     if (v === "map") setTimeout(() => { map.invalidateSize(); drawMap(); focusMap(); }, 30);
+    else if (v === "presentation") showSlide(deckIdx);
     else renderTopo();
   }
+
+  // ------------------------------------------------------------------ presentation (the brief deck as page images)
+  const DECK = window.PRESENTATION || { slides: [], pdf: "" };
+  let deckIdx = 0;
+  function showSlide(i) {
+    const n = DECK.slides.length;
+    if (!n) { $("#deck-title").textContent = "No slides: run tools/build_presentation.py"; return; }
+    deckIdx = (i + n) % n;
+    const sl = DECK.slides[deckIdx];
+    $("#deck-img").src = sl.src;
+    $("#deck-img").alt = `Slide ${deckIdx + 1}: ${sl.title}`;
+    $("#deck-count").textContent = `${deckIdx + 1} / ${n}`;
+    $("#deck-title").textContent = sl.title;
+    document.querySelectorAll(".deck-thumb").forEach((b, j) => { b.classList.toggle("active", j === deckIdx); b.setAttribute("aria-selected", j === deckIdx); });
+    const cur = document.querySelector(".deck-thumb.active");
+    if (cur) cur.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+  $("#deck-pdf").href = DECK.pdf;
+  $("#deck-thumbs").innerHTML = DECK.slides.map((sl, j) =>
+    `<button class="deck-thumb" role="tab" data-slide="${j}" title="${esc(sl.title)}"><img src="${esc(sl.src)}" alt="" loading="lazy"><span>${j + 1}</span></button>`).join("");
+  $("#deck-prev").addEventListener("click", () => showSlide(deckIdx - 1));
+  $("#deck-next").addEventListener("click", () => showSlide(deckIdx + 1));
+  $("#deck-img").addEventListener("click", () => showSlide(deckIdx + 1));
+  function deckFull(on) {
+    $("#deck").classList.toggle("full", on);
+    $("#deck-full").textContent = on ? "Close (Esc)" : "Full window";
+    $("#deck-full").setAttribute("aria-pressed", on);
+  }
+  $("#deck-full").addEventListener("click", () => deckFull(!$("#deck").classList.contains("full")));
+  $("#deck-thumbs").addEventListener("click", (e) => { const b = e.target.closest("[data-slide]"); if (b) showSlide(+b.dataset.slide); });
+  document.addEventListener("keydown", (e) => {
+    if (state.view !== "presentation" || e.target.closest?.("input, textarea, select, [contenteditable]")) return;
+    if (e.key === "ArrowRight" || e.key === "PageDown") { e.preventDefault(); showSlide(deckIdx + 1); }
+    else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); showSlide(deckIdx - 1); }
+    else if (e.key === "Escape") deckFull(false);
+    else if (e.key === "Home") showSlide(0);
+    else if (e.key === "End") showSlide(DECK.slides.length - 1);
+  });
 
   // ------------------------------------------------------------------ shared widgets
   function spark(sig, series, th, stale) {
@@ -970,7 +1011,7 @@
     panel.innerHTML = state.persona === "supervisor" ? supervisorPanel() : state.persona === "technician" ? technicianPanel() : walkthroughPanel();
     panel.scrollTop = top;
     if (state.persona === "walkthrough") panel.querySelector(".wt-step.current")?.scrollIntoView({ block: "nearest" });
-    if (state.view === "topo") renderTopo(); else drawMap();
+    if (state.view === "topo") renderTopo(); else if (state.view === "map") drawMap();
     renderAssistant(); renderLive();
   }
   const TAB_TOOL = { plan: "repair_db.get_plan", diagnose: "diagnose_issue", pack: "search_knowledge", parts: "check_parts", telemetry: "get_live_telemetry" };

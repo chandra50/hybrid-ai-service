@@ -173,6 +173,10 @@ def build(out: Path, static_motion: bool = False) -> None:
     fills = [MODE["ONLINE"], MODE["LIMITED"], MODE["OFFLINE"], EVENT, EVENT]
     d.table(s, MX, 1.55, [2.3, 3.2, 3.1, 3.5], rows, row_h=0.8, first_col_fills=fills, size=14)
 
+    # 8 - Implementation architecture (shared with the design deck)
+    from build_arch_slide import add_arch_slide
+    add_arch_slide(d)
+
     d.save(out)
 
 
