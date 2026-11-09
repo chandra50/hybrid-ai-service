@@ -21,6 +21,10 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from ..envfile import load_env_file
+
+load_env_file()   # e.g. ANTHROPIC_API_KEY from ~/.config/hybrid-ai/env
+
 ROOT = Path(__file__).resolve().parents[3]
 BASE = int(os.environ.get("HYBRID_PORT_BASE", "8800"))
 DATA_DIR = Path(os.environ.get("HYBRID_LIVE_DIR", ROOT / "data" / "live"))

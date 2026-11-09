@@ -250,6 +250,8 @@ class ManualAgent:
 
 def main(argv: list[str] | None = None) -> None:
     from ..demo.build_data import build
+    from ..envfile import load_env_file
+    load_env_file()
     args = argv if argv is not None else sys.argv[1:]
     if not args:
         print(__doc__)

@@ -107,7 +107,7 @@ The live demo includes a **repair-recommendation agent**: Claude Opus 5.5 search
 sudo nano /etc/default/hybrid-ai
 ```
 
-Uncomment `ANTHROPIC_API_KEY=` and paste your key. The file is readable by root only. Then restart:
+Uncomment `ANTHROPIC_API_KEY=` and paste your key. The file is readable by root only. (On a workstation, put the same line in `~/.config/hybrid-ai/env` instead; the demo reads it automatically.) Then restart:
 
 ```bash
 sudo systemctl restart hybrid-ai-live

@@ -156,7 +156,7 @@ The system prompt requires a citation (`[doc_id]`) for every step and only retri
 
 Router order: Online cloud → edge → device; Limited and Offline edge → device.
 
-**Credentials:** `ANTHROPIC_API_KEY` in the environment, or `/etc/default/hybrid-ai` on a server, or `~/.config/hybrid-ai/env` for the user service. Without credentials, everything still works, retrieval only.
+**Credentials:** `ANTHROPIC_API_KEY` in the environment, or `/etc/default/hybrid-ai` on a server, or `~/.config/hybrid-ai/env` (read automatically by every process and the CLI; override the path with `HYBRID_ENV_FILE`). Without credentials, everything still works, retrieval only.
 
 **CLI:** `PYTHONPATH=src .venv/bin/python -m hybrid_ai.agents.manual_agent WO-2026-0001 "question"`.
 
